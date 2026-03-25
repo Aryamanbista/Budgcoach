@@ -1,0 +1,21 @@
+{
+  "name": "budgcoach-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "yarn workspace web-admin dev",
+    "build:web": "yarn workspace web-admin build",
+    "dev:mobile": "yarn workspace mobile-app start",
+    "lint": "yarn workspaces run lint"
+  },
+  "devDependencies": {
+    "turbo": "^1.13.3"
+  },
+  "packageManager": "yarn@1.22.22",
+  "engines": {
+    "node": ">=18"
+  }
+}
