@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+apps/web-admin/.next/
+apps/web-admin/out/
+
+# Expo / React Native
+apps/mobile-app/.expo/
+apps/mobile-app/dist/
+apps/mobile-app/android/
+apps/mobile-app/ios/
+*.jsbundle
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.venv/
+venv/
+.env
+services/ml-engine/.env
+
+# ML model artefacts (can be large)
+*.pkl
+*.h5
+*.joblib
+*.onnx
+services/ml-engine/models/*.pkl
+services/ml-engine/models/*.h5
+
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Turbo
+.turbo/
