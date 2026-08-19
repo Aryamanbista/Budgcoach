@@ -41,11 +41,19 @@ class ForecastRequest(BaseModel):
     history: List[DailySpend]
 
 
+class AIStatus(BaseModel):
+    days_logged: int
+    required_days: int
+    readiness_percentage: float
+    active_model: str
+
+
 class ForecastResponse(BaseModel):
     predicted_spend: float
     budget_breach_warning: bool
     days_until_breach: int
     is_mock: bool
+    ai_status: AIStatus
 
 
 # ---------------------------------------------------------------------------
@@ -81,14 +89,38 @@ def predict_category(payload: PredictCategoryRequest):
 def forecast_budget(payload: ForecastRequest):
     """
     Forecasts future spending and warns of impending budget breaches based on
-    historical daily spends.
-
-    NOTE: This is a mock implementation.  The production version will use an
-    LSTM time-series model with seasonal nudge generation.
+    historical daily spends. Implements cold-start fallback logic.
     """
+    days_logged = len(payload.history)
+    required_days = 30
+    readiness_percentage = min(100.0, (days_logged / required_days) * 100.0)
+    
+    total_spend = sum(item.amount for item in payload.history)
+    
+    if days_logged < 14:
+        active_model = "rule_based"
+        if days_logged > 0:
+            predicted_spend = (total_spend / days_logged) * 30
+        else:
+            predicted_spend = 0.0
+    elif days_logged < 30:
+        active_model = "arima_baseline"
+        # Mock ARIMA output
+        predicted_spend = (total_spend / days_logged) * 30 * 1.05
+    else:
+        active_model = "lstm_network"
+        # In a full deployment, we load and inference via `lstm_forecaster.keras`
+        predicted_spend = 4500.00
+        
     return ForecastResponse(
-        predicted_spend=4500.00,
-        budget_breach_warning=True,
+        predicted_spend=predicted_spend,
+        budget_breach_warning=(predicted_spend > 10000.0), # Example threshold
         days_until_breach=5,
         is_mock=True,
+        ai_status=AIStatus(
+            days_logged=days_logged,
+            required_days=required_days,
+            readiness_percentage=readiness_percentage,
+            active_model=active_model
+        )
     )
