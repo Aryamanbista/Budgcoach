@@ -12,6 +12,13 @@ class TransactionsNotifier extends StateNotifier<List<TransactionModel>> {
     state.sort((a, b) => b.date.compareTo(a.date));
   }
 
+  void setTransactions(List<dynamic> jsonList) {
+    final parsed = jsonList.map((json) => TransactionModel.fromJson(json)).toList();
+    state = [...parsed, ...state];
+    _sortTransactions();
+    MockData.mockTransactions = state; // Sync to global mock store
+  }
+
   void addTransaction(TransactionModel transaction) {
     state = [transaction, ...state];
     _sortTransactions();

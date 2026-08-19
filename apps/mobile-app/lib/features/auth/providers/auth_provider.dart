@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../core/mock/mock_data.dart';
+import '../../../core/network/api_client.dart';
 
 class AuthState {
   final bool isLoggedIn;
@@ -32,7 +34,9 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier()
+  final ApiClient apiClient;
+  
+  AuthNotifier(this.apiClient)
       : super(AuthState(
           isLoggedIn: false,
           isOnboardingCompleted: false,
@@ -40,11 +44,43 @@ class AuthNotifier extends StateNotifier<AuthState> {
           themeMode: ThemeMode.light,
         ));
 
-  void login() {
-    state = state.copyWith(
-      isLoggedIn: true,
-      user: MockData.mockUser,
-    );
+  Future<void> login() async {
+    try {
+      // Attempt login first
+      Response response;
+      try {
+        response = await apiClient.dio.post('/login', data: {
+          'email': 'test@example.com',
+          'password': 'password'
+        });
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 401 || e.response?.statusCode == 404) {
+          // If user doesn't exist or unauthorized, register them first
+          await apiClient.dio.post('/register', data: {
+            'email': 'test@example.com',
+            'password': 'password',
+            'full_name': 'Test User'
+          });
+          // Then login again
+          response = await apiClient.dio.post('/login', data: {
+            'email': 'test@example.com',
+            'password': 'password'
+          });
+        } else {
+          rethrow;
+        }
+      }
+
+      final token = response.data['access_token'];
+      apiClient.setToken(token);
+
+      state = state.copyWith(
+        isLoggedIn: true,
+        user: MockData.mockUser,
+      );
+    } catch (e) {
+      debugPrint('Seamless login failed: $e');
+    }
   }
 
   void completeOnboarding({
@@ -90,5 +126,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
+  final apiClient = ref.watch(apiClientProvider);
+  return AuthNotifier(apiClient);
 });

@@ -24,9 +24,7 @@ class AppTheme {
         color: AppColors.surface,
         elevation: 2,
         shadowColor: AppColors.cardShadow,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       dividerColor: AppColors.divider,
       dividerTheme: const DividerThemeData(
@@ -118,15 +116,10 @@ class AppTheme {
         color: const Color(0xFF1E2220),
         elevation: 2,
         shadowColor: Colors.black45,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       dividerColor: Colors.grey[800],
-      dividerTheme: DividerThemeData(
-        color: Colors.grey[800],
-        thickness: 1,
-      ),
+      dividerTheme: DividerThemeData(color: Colors.grey[800], thickness: 1),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,

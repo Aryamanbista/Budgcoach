@@ -56,9 +56,9 @@ class LoginScreen extends ConsumerWidget {
               Column(
                 children: [
                   ElevatedButton(
-                    onPressed: () {
-                      ref.read(authProvider.notifier).login();
-                      context.go('/onboarding');
+                    onPressed: () async {
+                      await ref.read(authProvider.notifier).login();
+                      if (context.mounted) context.go('/onboarding');
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFF3F4F6),
@@ -93,15 +93,15 @@ class LoginScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   TextButton(
-                    onPressed: () {
-                      ref.read(authProvider.notifier).login();
+                    onPressed: () async {
+                      await ref.read(authProvider.notifier).login();
                       // Bypass onboarding
                       ref.read(authProvider.notifier).completeOnboarding(
                             name: 'Aryaman Bista',
                             occupation: 'Student',
                             monthlyIncome: 35000,
                           );
-                      context.go('/home/dashboard');
+                      if (context.mounted) context.go('/home/dashboard');
                     },
                     child: const Text('Bypass to Dashboard (Quick Test)'),
                   ),

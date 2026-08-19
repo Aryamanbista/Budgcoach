@@ -1,7 +1,8 @@
 from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from app.api.auth import get_current_user
 from app.core.database import get_db
 from app.models.user import User
@@ -12,13 +13,14 @@ from app.schemas.budget import BudgetCreate, BudgetUpdate, BudgetOut
 router = APIRouter()
 
 @router.post("/", response_model=BudgetOut, status_code=status.HTTP_201_CREATED)
-def create_budget(
+async def create_budget(
     payload: BudgetCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     # 1. Validate category exists
-    category = db.query(Category).filter(Category.id == payload.category_id).first()
+    result_cat = await db.execute(select(Category).filter(Category.id == payload.category_id))
+    category = result_cat.scalars().first()
     if not category:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -26,11 +28,12 @@ def create_budget(
         )
         
     # 2. Check if a budget already exists for this category, month_year and user
-    existing_budget = db.query(Budget).filter(
+    result_ex = await db.execute(select(Budget).filter(
         Budget.user_id == current_user.id,
         Budget.category_id == payload.category_id,
         Budget.month_year == payload.month_year
-    ).first()
+    ))
+    existing_budget = result_ex.scalars().first()
     if existing_budget:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -45,32 +48,34 @@ def create_budget(
         month_year=payload.month_year
     )
     db.add(db_budget)
-    db.commit()
-    db.refresh(db_budget)
+    await db.commit()
+    await db.refresh(db_budget)
     return db_budget
 
 @router.get("/", response_model=List[BudgetOut])
-def get_budgets(
+async def get_budgets(
     month_year: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    query = db.query(Budget).filter(Budget.user_id == current_user.id)
+    query = select(Budget).filter(Budget.user_id == current_user.id)
     if month_year:
         query = query.filter(Budget.month_year == month_year)
-    return query.all()
+    result = await db.execute(query)
+    return result.scalars().all()
 
 @router.patch("/{budget_id}", response_model=BudgetOut)
-def update_budget(
+async def update_budget(
     budget_id: UUID,
     payload: BudgetUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    db_budget = db.query(Budget).filter(
+    result = await db.execute(select(Budget).filter(
         Budget.id == budget_id,
         Budget.user_id == current_user.id
-    ).first()
+    ))
+    db_budget = result.scalars().first()
     if not db_budget:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -84,6 +89,6 @@ def update_budget(
     if payload.month_year is not None:
         db_budget.month_year = payload.month_year
         
-    db.commit()
-    db.refresh(db_budget)
+    await db.commit()
+    await db.refresh(db_budget)
     return db_budget

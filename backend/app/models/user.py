@@ -16,7 +16,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
-    accounts = relationship("Account", back_populates="user", cascade="all, delete-orphan")
-    transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
-    budgets = relationship("Budget", back_populates="user", cascade="all, delete-orphan")
-    savings_goals = relationship("SavingsGoal", back_populates="user", cascade="all, delete-orphan")
+    accounts = relationship("Account", lazy="selectin", back_populates="user", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", lazy="selectin", back_populates="user", cascade="all, delete-orphan")
+    budgets = relationship("Budget", lazy="selectin", back_populates="user", cascade="all, delete-orphan")
+    savings_goals = relationship("SavingsGoal", lazy="selectin", back_populates="user", cascade="all, delete-orphan")

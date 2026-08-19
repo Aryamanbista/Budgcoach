@@ -253,6 +253,54 @@ class ForecastScreen extends StatelessWidget {
                     ),
                 ],
               ),
+                  if (isCalibrating)
+                    Container(
+                      height: 250,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 80,
+                              height: 80,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  CircularProgressIndicator(
+                                    value: readinessPercentage / 100.0,
+                                    strokeWidth: 8,
+                                    backgroundColor: Colors.grey[300],
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.secondary),
+                                  ),
+                                  Center(
+                                    child: Text(
+                                      '${readinessPercentage.toInt()}%',
+                                      style: AppTextStyles.titleLarge.copyWith(color: AppColors.primary),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Calibrating AI...',
+                              style: AppTextStyles.titleLarge.copyWith(fontSize: 18),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Need more days of data to unlock LSTM.',
+                              style: AppTextStyles.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 12),
 
               // Legend

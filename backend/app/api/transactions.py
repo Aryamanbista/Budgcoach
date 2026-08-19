@@ -2,7 +2,8 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from app.api.auth import get_current_user
 from app.core.database import get_db
 from app.models.user import User
@@ -14,16 +15,17 @@ from app.schemas.transaction import TransactionCreate, TransactionOut
 router = APIRouter()
 
 @router.post("/", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
-def create_transaction(
+async def create_transaction(
     payload: TransactionCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     # 1. Validate that the account exists and belongs to the current user
-    account = db.query(Account).filter(
+    result = await db.execute(select(Account).filter(
         Account.id == payload.account_id,
         Account.user_id == current_user.id
-    ).first()
+    ))
+    account = result.scalars().first()
     if not account:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -32,7 +34,8 @@ def create_transaction(
     
     # 2. Validate category if provided
     if payload.category_id:
-        category = db.query(Category).filter(Category.id == payload.category_id).first()
+        result_cat = await db.execute(select(Category).filter(Category.id == payload.category_id))
+        category = result_cat.scalars().first()
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -62,21 +65,21 @@ def create_transaction(
     else:
         account.balance += payload.amount
         
-    db.commit()
-    db.refresh(db_tx)
+    await db.commit()
+    await db.refresh(db_tx)
     return db_tx
 
 @router.get("/", response_model=List[TransactionOut])
-def get_transactions(
+async def get_transactions(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     category_id: Optional[UUID] = Query(None),
     limit: int = Query(100, ge=1),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
-    query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
+    query = select(Transaction).filter(Transaction.user_id == current_user.id)
     
     if start_date:
         query = query.filter(Transaction.date >= start_date)
@@ -85,4 +88,6 @@ def get_transactions(
     if category_id:
         query = query.filter(Transaction.category_id == category_id)
         
-    return query.order_by(Transaction.date.desc()).offset(offset).limit(limit).all()
+    query = query.order_by(Transaction.date.desc()).offset(offset).limit(limit)
+    result = await db.execute(query)
+    return result.scalars().all()

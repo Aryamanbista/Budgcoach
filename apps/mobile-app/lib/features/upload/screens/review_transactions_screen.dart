@@ -10,7 +10,8 @@ import '../../../shared/models/transaction_model.dart';
 import '../../transactions/providers/transactions_provider.dart';
 
 class ReviewTransactionsScreen extends ConsumerStatefulWidget {
-  const ReviewTransactionsScreen({super.key});
+  final List<dynamic> parsedTransactions;
+  const ReviewTransactionsScreen({super.key, required this.parsedTransactions});
 
   @override
   ConsumerState<ReviewTransactionsScreen> createState() => _ReviewTransactionsScreenState();
@@ -22,107 +23,9 @@ class _ReviewTransactionsScreenState extends ConsumerState<ReviewTransactionsScr
   @override
   void initState() {
     super.initState();
-    // Prepare 12 mock extracted transactions
-    final now = DateTime.now();
-    _extractedTxs = [
-      TransactionModel(
-        id: 'ocr_001',
-        description: 'Bhat Bhateni Store',
-        amount: -2200,
-        date: now,
-        category: TransactionCategory.food,
-        source: 'eSewa OCR',
-      ),
-      TransactionModel(
-        id: 'ocr_002',
-        description: 'Momo Hut Lalitpur',
-        amount: -600,
-        date: now,
-        category: TransactionCategory.food,
-        source: 'eSewa OCR',
-      ),
-      TransactionModel(
-        id: 'ocr_003',
-        description: 'Pathao Taxi Ride',
-        amount: -350,
-        date: now,
-        category: TransactionCategory.transport,
-        source: 'eSewa OCR',
-      ),
-      TransactionModel(
-        id: 'ocr_004',
-        description: 'Daraz Nepal Shopping',
-        amount: -1500,
-        date: now.subtract(const Duration(days: 1)),
-        category: TransactionCategory.shopping,
-        source: 'eSewa OCR',
-      ),
-      // Duplicate set
-      TransactionModel(
-        id: 'ocr_005',
-        description: 'NEA Electricity Payment',
-        amount: -1200,
-        date: now.subtract(const Duration(days: 1)),
-        category: TransactionCategory.utilities,
-        source: 'eSewa OCR',
-      ),
-      TransactionModel(
-        id: 'ocr_006',
-        description: 'NEA Electricity Payment',
-        amount: -1200,
-        date: now.subtract(const Duration(days: 1)),
-        category: TransactionCategory.utilities,
-        source: 'eSewa OCR', // Mark this as duplicate
-      ),
-      TransactionModel(
-        id: 'ocr_007',
-        description: 'QFX Cinemas ticket',
-        amount: -750,
-        date: now.subtract(const Duration(days: 2)),
-        category: TransactionCategory.entertainment,
-        source: 'eSewa OCR',
-      ),
-      TransactionModel(
-        id: 'ocr_008',
-        description: 'Alka Pharmacy Medicine',
-        amount: -450,
-        date: now.subtract(const Duration(days: 2)),
-        category: TransactionCategory.health,
-        source: 'eSewa OCR',
-      ),
-      TransactionModel(
-        id: 'ocr_009',
-        description: 'Stationery Books',
-        amount: -350,
-        date: now.subtract(const Duration(days: 3)),
-        category: TransactionCategory.education,
-        source: 'eSewa OCR',
-      ),
-      TransactionModel(
-        id: 'ocr_010',
-        description: 'Cash Withdrawal',
-        amount: -2000,
-        date: now.subtract(const Duration(days: 3)),
-        category: TransactionCategory.other,
-        source: 'eSewa OCR',
-      ),
-      TransactionModel(
-        id: 'ocr_011',
-        description: 'Khalti Fund Transfer',
-        amount: -1000,
-        date: now.subtract(const Duration(days: 4)),
-        category: TransactionCategory.transfer,
-        source: 'eSewa OCR',
-      ),
-      TransactionModel(
-        id: 'ocr_012',
-        description: 'Pocket Money from Father',
-        amount: 5000,
-        date: now.subtract(const Duration(days: 4)),
-        category: TransactionCategory.income,
-        source: 'eSewa OCR',
-      ),
-    ];
+    _extractedTxs = widget.parsedTransactions.map((json) {
+      return TransactionModel.fromJson(json as Map<String, dynamic>);
+    }).toList();
   }
 
   void _updateTxDescription(int index, String value) {
@@ -148,7 +51,7 @@ class _ReviewTransactionsScreenState extends ConsumerState<ReviewTransactionsScr
           amount: tx.amount,
           date: tx.date,
           category: tx.category,
-          source: 'eSewa Statement Import',
+          source: 'Statement Import',
           notes: 'Imported from statement file',
           confidence: 0.90,
         ),
@@ -195,8 +98,7 @@ class _ReviewTransactionsScreenState extends ConsumerState<ReviewTransactionsScr
                 itemCount: _extractedTxs.length,
                 itemBuilder: (context, index) {
                   final tx = _extractedTxs[index];
-                  // Let's mark the 6th item (NEA duplicates index 5) as DUP
-                  final isDuplicate = index == 5;
+                  final isDuplicate = widget.parsedTransactions[index]['is_duplicate'] == true;
                   
                   return Card(
                     margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),

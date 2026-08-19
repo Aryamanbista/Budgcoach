@@ -56,3 +56,10 @@ yarn-error.log*
 
 # Turbo
 .turbo/
+
+
+context files/
+AccountStatement.pdf
+eSewa_statement_2026-07-20_2026-07-27.xls*.keras
+services/ml-engine/data/
+eSewa_statement_2026-07-20_2026-07-27.xls
