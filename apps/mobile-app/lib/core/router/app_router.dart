@@ -66,7 +66,9 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/upload/review',
-      builder: (context, state) => const ReviewTransactionsScreen(),
+      builder: (context, state) => ReviewTransactionsScreen(
+        parsedTransactions: state.extra as List<dynamic>? ?? [],
+      ),
     ),
     GoRoute(
       path: '/health-score',

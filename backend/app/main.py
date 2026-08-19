@@ -7,6 +7,7 @@ from app.api.budgets import router as budgets_router
 from app.api.goals import router as goals_router
 from app.api.upload import router as upload_router
 from app.api.forecast import router as forecast_router
+from app.api.sms import router as sms_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -25,6 +26,7 @@ app.add_middleware(
 # Include Routers
 app.include_router(auth_router, prefix=settings.API_V1_STR, tags=["Authentication"])
 app.include_router(transactions_router, prefix=f"{settings.API_V1_STR}/transactions", tags=["Transactions"])
+app.include_router(sms_router, prefix=f"{settings.API_V1_STR}/transactions", tags=["Transactions"])
 app.include_router(budgets_router, prefix=f"{settings.API_V1_STR}/budgets", tags=["Budgets"])
 app.include_router(goals_router, prefix=f"{settings.API_V1_STR}/goals", tags=["Savings Goals"])
 app.include_router(upload_router, prefix=f"{settings.API_V1_STR}", tags=["Uploads"])

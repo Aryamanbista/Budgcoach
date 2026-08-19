@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/network/api_client.dart';
+import '../../transactions/providers/transactions_provider.dart';
 import '../widgets/ocr_progress_stepper.dart';
 
-class UploadScreen extends StatefulWidget {
+class UploadScreen extends ConsumerStatefulWidget {
   const UploadScreen({super.key});
 
   @override
-  State<UploadScreen> createState() => _UploadScreenState();
+  ConsumerState<UploadScreen> createState() => _UploadScreenState();
 }
 
-class _UploadScreenState extends State<UploadScreen> {
+class _UploadScreenState extends ConsumerState<UploadScreen> {
   String _selectedPlatform = 'eSewa';
   String? _selectedFileName;
   String? _selectedFileSize;
   bool _isFileSelected = false;
+  PlatformFile? _pickedFile;
+  bool _isUploading = false;
 
   final List<String> _platforms = [
     'eSewa',
@@ -25,33 +32,102 @@ class _UploadScreenState extends State<UploadScreen> {
     'Himalayan Bank',
   ];
 
-  void _pickMockFile() {
-    setState(() {
-      _selectedFileName = 'statement_june_2026_${_selectedPlatform.toLowerCase().replaceAll(' ', '_')}.pdf';
-      _selectedFileSize = '245 KB';
-      _isFileSelected = true;
-    });
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any, // Using any since custom extensions can fail silently on some web browsers
+        withData: true, // Need bytes since macOS might have sandbox issues with file paths
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        setState(() {
+          _pickedFile = file;
+          _selectedFileName = file.name;
+          _selectedFileSize = '${(file.size / 1024).toStringAsFixed(1)} KB';
+          _isFileSelected = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking file: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open file picker: $e'),
+            backgroundColor: Colors.red,
+          )
+        );
+      }
+    }
   }
 
   void _clearFile() {
     setState(() {
+      _pickedFile = null;
       _selectedFileName = null;
       _selectedFileSize = null;
       _isFileSelected = false;
     });
   }
 
-  void _processStatement() {
+  Future<void> _processStatement() async {
+    if (_pickedFile == null || _pickedFile!.bytes == null) return;
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    // Show the progress stepper overlay
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => OcrProgressStepper(
-        onCompleted: () {
-          Navigator.of(context).pop(); // Dismiss stepper dialog
-          context.push('/upload/review'); // Navigate to review screen
-        },
+        onCompleted: () {}, // We will manually pop when upload finishes
       ),
     );
+
+    try {
+      final apiClient = ref.read(apiClientProvider);
+      
+      final formData = FormData.fromMap({
+        'wallet_type': _selectedPlatform,
+        // Passing a dummy UUID for the account ID constraint on the backend
+        'account_id': '123e4567-e89b-12d3-a456-426614174000',
+        'file': MultipartFile.fromBytes(
+          _pickedFile!.bytes!,
+          filename: _pickedFile!.name,
+        ),
+      });
+
+      final response = await apiClient.dio.post(
+        '/upload-statement',
+        data: formData,
+      );
+
+      final transactions = response.data['transactions'] as List<dynamic>;
+
+      if (mounted) {
+        Navigator.of(context).pop(); // dismiss dialog
+        context.push('/upload/review', extra: transactions);
+      }
+    } catch (e) {
+      debugPrint('Upload failed: $e');
+      if (mounted) {
+        Navigator.of(context).pop(); // dismiss dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to process statement: $e'),
+            backgroundColor: Colors.red,
+          )
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -91,10 +167,6 @@ class _UploadScreenState extends State<UploadScreen> {
                         if (selected) {
                           setState(() {
                             _selectedPlatform = platform;
-                            // Update file name if already selected
-                            if (_isFileSelected) {
-                              _selectedFileName = 'statement_june_2026_${platform.toLowerCase().replaceAll(' ', '_')}.pdf';
-                            }
                           });
                         }
                       },
@@ -113,7 +185,7 @@ class _UploadScreenState extends State<UploadScreen> {
             // Upload Area
             Expanded(
               child: InkWell(
-                onTap: _isFileSelected ? null : _pickMockFile,
+                onTap: _isFileSelected ? null : _pickFile,
                 borderRadius: BorderRadius.circular(16),
                 child: Container(
                   decoration: BoxDecoration(
@@ -127,10 +199,11 @@ class _UploadScreenState extends State<UploadScreen> {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (!_isFileSelected) ...[
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (!_isFileSelected) ...[
                           const Icon(
                             Icons.upload_file,
                             size: 64,
@@ -138,19 +211,19 @@ class _UploadScreenState extends State<UploadScreen> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Tap to select PDF or image',
+                            'Tap to select a document',
                             style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Supported formats: PDF, JPG, PNG',
+                            'Supported formats: PDF, Excel, CSV, JPG, PNG',
                             style: AppTextStyles.labelSmall,
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 16),
                           TextButton(
-                            onPressed: _pickMockFile,
+                            onPressed: _pickFile,
                             child: const Text('Or take a photo'),
                           ),
                         ] else ...[
@@ -186,6 +259,7 @@ class _UploadScreenState extends State<UploadScreen> {
                 ),
               ),
             ),
+          ),
             const SizedBox(height: 24),
 
             // Process Statement Button
@@ -207,7 +281,7 @@ class _UploadScreenState extends State<UploadScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Supported formats: eSewa PDF statement exports, Khalti statement screens, and PDF bank statements from Nabil Bank, Sunrise Bank, and Himalayan Bank.',
+                        'Supported formats: PDF statements, Excel/CSV exports, and Screenshots from supported banks and wallets.',
                         style: AppTextStyles.labelSmall.copyWith(fontSize: 11),
                       ),
                     ),

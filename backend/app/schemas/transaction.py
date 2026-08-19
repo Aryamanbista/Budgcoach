@@ -3,6 +3,17 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, computed_field
+from typing import Literal
+
+class TransactionRow(BaseModel):
+    date: Optional[str] = None
+    description: Optional[str] = None
+    debit: Optional[float] = None
+    credit: Optional[float] = None
+    balance: Optional[float] = None
+    raw_text: str
+    source_format: Literal["excel", "pdf_text", "pdf_ocr", "image_ocr"]
+    confidence: float = 1.0
 
 class TransactionBase(BaseModel):
     account_id: UUID

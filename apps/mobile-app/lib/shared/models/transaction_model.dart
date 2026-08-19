@@ -45,4 +45,32 @@ class TransactionModel {
       confidence: confidence ?? this.confidence,
     );
   }
+
+  factory TransactionModel.fromJson(Map<String, dynamic> json) {
+    // Map backend 'type' (debit/credit) and 'amount' to our signed amount
+    final double rawAmount = double.parse(json['amount'].toString());
+    final bool isDebit = json['type'] == 'debit';
+    final signedAmount = isDebit ? -rawAmount : rawAmount;
+
+    // Use clean_text, fallback to transaction_text or raw_text
+    final String description = json['clean_text'] ?? 
+                              json['transaction_text'] ?? 
+                              json['raw_text'] ?? 
+                              'Unknown Transaction';
+
+    return TransactionModel(
+      id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      description: description,
+      amount: signedAmount,
+      date: json['transaction_date'] != null 
+          ? DateTime.parse(json['transaction_date']) 
+          : (json['date'] != null ? DateTime.parse(json['date']) : DateTime.now()),
+      category: TransactionCategory.other, // Default for now unless backend categorizes
+      source: json['is_manual_entry'] == true ? 'Manual' : 'System',
+      notes: json['raw_text'],
+      confidence: json['ml_confidence_score'] != null 
+          ? double.tryParse(json['ml_confidence_score'].toString()) 
+          : null,
+    );
+  }
 }

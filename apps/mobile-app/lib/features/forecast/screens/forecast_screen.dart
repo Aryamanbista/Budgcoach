@@ -205,6 +205,8 @@ class ForecastScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
+              ),
                   if (isCalibrating)
                     Container(
                       height: 250,
