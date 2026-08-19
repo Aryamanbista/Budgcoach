@@ -21,6 +21,16 @@ class ForecastScreen extends StatelessWidget {
         .map((pt) => FlSpot(pt.day.toDouble(), pt.amount))
         .toList();
 
+    // Mock AI Status from Backend
+    final double readinessPercentage = 45.0; // Mock: 45% complete (< 30 days data)
+    final String activeModel = 'rule_based'; // 'rule_based', 'arima_baseline', or 'lstm_network'
+    
+    final String subtitleLabel = activeModel == 'lstm_network' 
+        ? '(Powered by Budgcoach AI)' 
+        : '(Rule-Based Estimate)';
+    
+    final bool isCalibrating = readinessPercentage < 100.0;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Spending Forecast'),
@@ -82,14 +92,30 @@ class ForecastScreen extends StatelessWidget {
               const SizedBox(height: 24),
 
               // Chart Header
-              Text(
-                'June Spending Projection (LSTM Model)',
-                style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'June Spending Projection',
+                    style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitleLabel,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: activeModel == 'lstm_network' ? AppColors.primary : AppColors.secondary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
 
               // Line Chart Container
-              Card(
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Card(
                 child: Padding(
                   padding: const EdgeInsets.only(right: 20.0, left: 10.0, top: 20.0, bottom: 10.0),
                   child: SizedBox(
@@ -179,7 +205,53 @@ class ForecastScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                ),
+                  if (isCalibrating)
+                    Container(
+                      height: 250,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 80,
+                              height: 80,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  CircularProgressIndicator(
+                                    value: readinessPercentage / 100.0,
+                                    strokeWidth: 8,
+                                    backgroundColor: Colors.grey[300],
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.secondary),
+                                  ),
+                                  Center(
+                                    child: Text(
+                                      '${readinessPercentage.toInt()}%',
+                                      style: AppTextStyles.titleLarge.copyWith(color: AppColors.primary),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Calibrating AI...',
+                              style: AppTextStyles.titleLarge.copyWith(fontSize: 18),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Need more days of data to unlock LSTM.',
+                              style: AppTextStyles.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 12),
 
