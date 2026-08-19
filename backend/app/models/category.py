@@ -11,5 +11,5 @@ class Category(Base):
     name = Column(String, unique=True, nullable=False)
 
     # Relationships
-    transactions = relationship("Transaction", back_populates="category")
-    budgets = relationship("Budget", back_populates="category")
+    transactions = relationship("Transaction", lazy="selectin", back_populates="category")
+    budgets = relationship("Budget", lazy="selectin", back_populates="category")
