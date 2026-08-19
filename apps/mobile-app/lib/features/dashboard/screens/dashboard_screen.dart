@@ -30,11 +30,13 @@ class DashboardScreen extends ConsumerWidget {
 
     // Calculate budget & spent values dynamically
     // Exclude Income and Transfer from spending card totals
-    final spendingBudgets = budgets.where((b) =>
-        b.category != TransactionCategory.income &&
-        b.category != TransactionCategory.transfer &&
-        b.category != TransactionCategory.savings);
-        
+    final spendingBudgets = budgets.where(
+      (b) =>
+          b.category != TransactionCategory.income &&
+          b.category != TransactionCategory.transfer &&
+          b.category != TransactionCategory.savings,
+    );
+
     final totalBudget = spendingBudgets.fold(0.0, (sum, b) => sum + b.limit);
     final totalSpent = spendingBudgets.fold(0.0, (sum, b) => sum + b.spent);
 
@@ -54,15 +56,17 @@ class DashboardScreen extends ConsumerWidget {
     final Map<TransactionCategory, double> catSpending = {};
     for (var tx in transactions) {
       if (tx.amount < 0) {
-        catSpending[tx.category] = (catSpending[tx.category] ?? 0.0) + tx.amount.abs();
+        catSpending[tx.category] =
+            (catSpending[tx.category] ?? 0.0) + tx.amount.abs();
       }
     }
-    
-    final chipItems = catSpending.entries
-        .map((e) => CategoryChipItem(category: e.key, amount: e.value))
-        .toList()
-      ..sort((a, b) => b.amount.compareTo(a.amount));
-    
+
+    final chipItems =
+        catSpending.entries
+            .map((e) => CategoryChipItem(category: e.key, amount: e.value))
+            .toList()
+          ..sort((a, b) => b.amount.compareTo(a.amount));
+
     // Top 5 categories
     final topChips = chipItems.take(5).toList();
 
@@ -97,7 +101,7 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          )
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -106,26 +110,36 @@ class DashboardScreen extends ConsumerWidget {
           children: [
             // Greeting Card
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Good morning, ${authState.user?.name.split(' ').first ?? 'Aryaman'}! 👋',
-                        style: AppTextStyles.titleLarge.copyWith(
-                          fontSize: 20,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Good morning, ${authState.user?.name.split(' ').first ?? 'Aryaman'}! 👋',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.titleLarge.copyWith(
+                            fontSize: 20,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'June 2026 · Kathmandu, Nepal',
-                        style: AppTextStyles.labelSmall,
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          'June 2026 · Kathmandu, Nepal',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.labelSmall,
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   HealthScoreBadge(
                     score: MockData.healthScoreValue,
                     onTap: () => context.push('/health-score'),
@@ -152,13 +166,18 @@ class DashboardScreen extends ConsumerWidget {
                 id: activeWarningNudge.id,
                 message: activeWarningNudge.description,
                 onDismiss: () {
-                  ref.read(nudgesProvider.notifier).dismissNudge(activeWarningNudge.id);
+                  ref
+                      .read(nudgesProvider.notifier)
+                      .dismissNudge(activeWarningNudge.id);
                 },
               ),
 
             // Category Spending title
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: Text(
                 'Top Categories This Month',
                 style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
@@ -171,7 +190,10 @@ class DashboardScreen extends ConsumerWidget {
             else
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Text('No category expenses recorded yet.', style: AppTextStyles.bodyMedium),
+                child: Text(
+                  'No category expenses recorded yet.',
+                  style: AppTextStyles.bodyMedium,
+                ),
               ),
             const SizedBox(height: 16),
 
@@ -181,9 +203,13 @@ class DashboardScreen extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Recent Transactions',
-                    style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
+                  Expanded(
+                    child: Text(
+                      'Recent Transactions',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
+                    ),
                   ),
                   TextButton(
                     onPressed: () => context.go('/home/transactions'),
@@ -197,12 +223,15 @@ class DashboardScreen extends ConsumerWidget {
             if (recentTransactions.isNotEmpty)
               Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16.0),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: recentTransactions.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1, indent: 80),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1, indent: 80),
                   itemBuilder: (context, index) {
                     final tx = recentTransactions[index];
                     return TransactionListItem(
@@ -216,7 +245,10 @@ class DashboardScreen extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Center(
-                  child: Text('No transactions yet.', style: AppTextStyles.bodyMedium),
+                  child: Text(
+                    'No transactions yet.',
+                    style: AppTextStyles.bodyMedium,
+                  ),
                 ),
               ),
             const SizedBox(height: 24),
@@ -297,11 +329,7 @@ class DashboardScreen extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppColors.primary.withOpacity(0.2)),
               ),
-              child: Icon(
-                icon,
-                color: AppColors.primary,
-                size: 28,
-              ),
+              child: Icon(icon, color: AppColors.primary, size: 28),
             ),
           ),
           const SizedBox(height: 8),
