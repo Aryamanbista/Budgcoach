@@ -12,14 +12,15 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
   const AddTransactionSheet({super.key});
 
   @override
-  ConsumerState<AddTransactionSheet> createState() => _AddTransactionSheetState();
+  ConsumerState<AddTransactionSheet> createState() =>
+      _AddTransactionSheetState();
 }
 
 class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _notesController = TextEditingController();
-  
+
   TransactionCategory _selectedCategory = TransactionCategory.food;
   DateTime _selectedDate = DateTime.now();
   bool _isExpense = true;
@@ -49,14 +50,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   void _saveTransaction() {
     final amountVal = double.tryParse(_amountController.text);
     final descriptionVal = _descriptionController.text.trim();
-    
+
     if (amountVal == null || amountVal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid amount')),
       );
       return;
     }
-    
+
     if (descriptionVal.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a description')),
@@ -73,15 +74,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       date: _selectedDate,
       category: _selectedCategory,
       source: 'Manual Entry',
-      notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+      notes: _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
     );
 
     ref.read(transactionsProvider.notifier).addTransaction(newTx);
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Transaction saved successfully')),
     );
-    
+
     Navigator.of(context).pop();
   }
 
@@ -132,7 +135,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     },
                     selectedColor: AppColors.danger.withOpacity(0.15),
                     labelStyle: TextStyle(
-                      color: _isExpense ? AppColors.danger : AppColors.textSecondary,
+                      color: _isExpense
+                          ? AppColors.danger
+                          : AppColors.textSecondary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -150,7 +155,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     },
                     selectedColor: AppColors.success.withOpacity(0.15),
                     labelStyle: TextStyle(
-                      color: !_isExpense ? AppColors.success : AppColors.textSecondary,
+                      color: !_isExpense
+                          ? AppColors.success
+                          : AppColors.textSecondary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -162,15 +169,26 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             // Amount Input
             TextField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               style: AppTextStyles.headlineMedium,
               decoration: InputDecoration(
                 labelText: 'Amount',
                 prefixIcon: const Padding(
                   padding: EdgeInsets.all(12.0),
-                  child: Text('NPR', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                  child: Text(
+                    'NPR',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
                 ),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -181,7 +199,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               decoration: InputDecoration(
                 labelText: 'Description',
                 hintText: 'e.g., Bhat Bhateni Supermarket',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -191,19 +211,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               value: _selectedCategory,
               decoration: InputDecoration(
                 labelText: 'Category',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               items: TransactionCategory.values
-                  .map((cat) => DropdownMenuItem(
-                        value: cat,
-                        child: Row(
-                          children: [
-                            Text(cat.emoji, style: const TextStyle(fontSize: 20)),
-                            const SizedBox(width: 12),
-                            Text(cat.name),
-                          ],
-                        ),
-                      ))
+                  .map(
+                    (cat) => DropdownMenuItem(
+                      value: cat,
+                      child: Row(
+                        children: [
+                          Text(cat.emoji, style: const TextStyle(fontSize: 20)),
+                          const SizedBox(width: 12),
+                          Text(cat.displayName),
+                        ],
+                      ),
+                    ),
+                  )
                   .toList(),
               onChanged: (val) {
                 if (val != null) {
@@ -221,7 +245,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               child: InputDecorator(
                 decoration: InputDecoration(
                   labelText: 'Date',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   suffixIcon: const Icon(Icons.calendar_today),
                 ),
                 child: Text(
@@ -239,7 +265,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               decoration: InputDecoration(
                 labelText: 'Notes (Optional)',
                 hintText: 'Add description details...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const SizedBox(height: 24),

@@ -17,7 +17,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _enableNotifications = true;
 
   void _showEditIncomeDialog(BuildContext context, double currentIncome) {
-    final controller = TextEditingController(text: currentIncome.toInt().toString());
+    final controller = TextEditingController(
+      text: currentIncome.toInt().toString(),
+    );
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -58,9 +60,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: SingleChildScrollView(
-          child: Text(content),
-        ),
+        content: SingleChildScrollView(child: Text(content)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -78,10 +78,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final isDark = authState.themeMode == ThemeMode.dark;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Profile'), elevation: 0),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -106,11 +103,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 16),
                   Text(
                     user?.name ?? 'Aryaman Bista',
-                    style: AppTextStyles.headlineMedium.copyWith(fontWeight: FontWeight.bold),
+                    style: AppTextStyles.headlineMedium.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Text(
                     user?.email ?? 'aryaman@example.com',
-                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Chip(
@@ -131,9 +132,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 children: [
                   ListTile(
                     title: const Text('Monthly Income'),
-                    subtitle: Text(Formatters.formatNpr(user?.monthlyIncome ?? 35000)),
+                    subtitle: Text(
+                      Formatters.formatNpr(user?.monthlyIncome ?? 35000),
+                    ),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _showEditIncomeDialog(context, user?.monthlyIncome ?? 35000),
+                    onTap: () => _showEditIncomeDialog(
+                      context,
+                      user?.monthlyIncome ?? 35000,
+                    ),
                   ),
                   const Divider(height: 1),
                   ListTile(
@@ -141,8 +147,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     subtitle: Wrap(
                       spacing: 8,
                       children: const [
-                        Chip(label: Text('eSewa'), padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
-                        Chip(label: Text('Khalti'), padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                        Chip(
+                          label: Text('eSewa'),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        Chip(
+                          label: Text('Khalti'),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
                       ],
                     ),
                   ),
@@ -158,7 +172,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 children: [
                   SwitchListTile(
                     title: const Text('Dark Theme'),
-                    subtitle: Text(isDark ? 'Dark mode enabled' : 'Light mode enabled'),
+                    subtitle: Text(
+                      isDark ? 'Dark mode enabled' : 'Light mode enabled',
+                    ),
                     value: isDark,
                     activeColor: AppColors.primary,
                     onChanged: (val) {
@@ -197,20 +213,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     trailing: const Icon(Icons.download),
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon: PDF/Excel exports')),
+                        const SnackBar(
+                          content: Text('Coming soon: PDF/Excel exports'),
+                        ),
                       );
                     },
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    title: const Text('Clear Mock Data Cache', style: TextStyle(color: AppColors.danger)),
-                    trailing: const Icon(Icons.refresh, color: AppColors.danger),
+                    title: const Text(
+                      'Clear Mock Data Cache',
+                      style: TextStyle(color: AppColors.danger),
+                    ),
+                    trailing: const Icon(
+                      Icons.refresh,
+                      color: AppColors.danger,
+                    ),
                     onTap: () {
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
                           title: const Text('Reset Mock Data?'),
-                          content: const Text('Are you sure you want to reset all transactions, goals, and budget limits back to the default state?'),
+                          content: const Text(
+                            'Are you sure you want to reset all transactions, goals, and budget limits back to the default state?',
+                          ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.of(context).pop(),
@@ -220,10 +246,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               onPressed: () {
                                 Navigator.of(context).pop();
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Mock database re-initialized. Restart app to apply.')),
+                                  const SnackBar(
+                                    content: Text(
+                                      'Mock database re-initialized. Restart app to apply.',
+                                    ),
+                                  ),
                                 );
                               },
-                              child: const Text('RESET', style: TextStyle(color: AppColors.danger)),
+                              child: const Text(
+                                'RESET',
+                                style: TextStyle(color: AppColors.danger),
+                              ),
                             ),
                           ],
                         ),
@@ -262,7 +295,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const Divider(height: 1),
                   const ListTile(
                     title: Text('App Version'),
-                    trailing: Text('1.0.0-beta', style: TextStyle(color: AppColors.textSecondary)),
+                    trailing: Text(
+                      '1.0.0-beta',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
                   ),
                 ],
               ),

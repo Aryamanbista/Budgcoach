@@ -21,10 +21,10 @@ class TransactionListItem extends StatelessWidget {
     final catColor = transaction.category.color;
     final isExpense = transaction.amount < 0;
     final amountColor = isExpense ? AppColors.danger : AppColors.success;
-    
+
     // Formatting time: eSewa statements might have dates or specific times. E.g. "2:30 PM"
     final timeStr = DateFormat('h:mm a').format(transaction.date);
-    
+
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -43,14 +43,12 @@ class TransactionListItem extends StatelessWidget {
       ),
       title: Text(
         transaction.description,
-        style: AppTextStyles.bodyLarge.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
+        style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w600),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        '${transaction.category.name} · $timeStr',
+        '${transaction.category.displayName} · $timeStr',
         style: AppTextStyles.labelSmall.copyWith(
           color: AppColors.textSecondary,
         ),

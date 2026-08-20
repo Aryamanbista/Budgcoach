@@ -8,19 +8,13 @@ class CategoryChipItem {
   final TransactionCategory category;
   final double amount;
 
-  CategoryChipItem({
-    required this.category,
-    required this.amount,
-  });
+  CategoryChipItem({required this.category, required this.amount});
 }
 
 class CategoryChipsRow extends StatelessWidget {
   final List<CategoryChipItem> items;
 
-  const CategoryChipsRow({
-    super.key,
-    required this.items,
-  });
+  const CategoryChipsRow({super.key, required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -43,20 +37,19 @@ class CategoryChipsRow extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Text(
-                  item.category.emoji,
-                  style: const TextStyle(fontSize: 22),
-                ),
+                Text(item.category.emoji, style: const TextStyle(fontSize: 22)),
                 const SizedBox(width: 10),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      item.category.name,
+                      item.category.displayName,
                       style: AppTextStyles.labelSmall.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onBackground.withOpacity(0.8),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onBackground.withOpacity(0.8),
                         fontSize: 11,
                       ),
                     ),

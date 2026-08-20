@@ -16,9 +16,13 @@ class BudgetScreen extends ConsumerWidget {
     final budgets = ref.watch(budgetsProvider);
 
     // Filter budgets to display spending categories (exclude Income and Transfer)
-    final displayBudgets = budgets.where((b) =>
-        b.category != TransactionCategory.income &&
-        b.category != TransactionCategory.transfer).toList();
+    final displayBudgets = budgets
+        .where(
+          (b) =>
+              b.category != TransactionCategory.income &&
+              b.category != TransactionCategory.transfer,
+        )
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -30,7 +34,10 @@ class BudgetScreen extends ConsumerWidget {
         children: [
           // Month Navigator (← June 2026 →)
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(
+              vertical: 8.0,
+              horizontal: 16.0,
+            ),
             color: Theme.of(context).cardTheme.color,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -41,7 +48,9 @@ class BudgetScreen extends ConsumerWidget {
                 ),
                 Text(
                   'June 2026',
-                  style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
@@ -50,7 +59,7 @@ class BudgetScreen extends ConsumerWidget {
               ],
             ),
           ),
-          
+
           Expanded(
             child: SingleChildScrollView(
               child: Column(
@@ -65,7 +74,9 @@ class BudgetScreen extends ConsumerWidget {
                         children: [
                           Text(
                             'Spending Allocation breakdown',
-                            style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                            style: AppTextStyles.bodyLarge.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           BudgetDonutChart(budgets: budgets),
@@ -74,10 +85,13 @@ class BudgetScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Category Budgets Header
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 8.0,
+                    ),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -86,7 +100,7 @@ class BudgetScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  
+
                   // Budgets progress list
                   ListView.builder(
                     shrinkWrap: true,

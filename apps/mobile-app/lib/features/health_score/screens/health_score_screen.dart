@@ -1,143 +1,158 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/mock/mock_data.dart';
+import '../providers/health_score_provider.dart';
 
-class HealthScoreScreen extends StatelessWidget {
+class HealthScoreScreen extends ConsumerWidget {
   const HealthScoreScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    const score = MockData.healthScoreValue;
-    const subScores = MockData.healthSubScores;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final healthScoreAsync = ref.watch(healthScoreProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Financial Health Score'),
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Score Arc Gauge
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32.0),
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        width: 180,
-                        height: 180,
-                        child: CustomPaint(
-                          painter: ScoreArcPainter(score: score),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SizedBox(height: 12),
-                                Text(
-                                  '$score',
-                                  style: AppTextStyles.displayLarge.copyWith(
-                                    fontSize: 54,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+    return healthScoreAsync.when(
+      data: (healthData) {
+        final score = healthData.score;
+        final subScores = healthData.subScores;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Financial Health Score'),
+            elevation: 0,
+          ),
+          body: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Score Arc Gauge
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32.0),
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            width: 180,
+                            height: 180,
+                            child: CustomPaint(
+                              painter: ScoreArcPainter(score: score),
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      '$score',
+                                      style: AppTextStyles.displayLarge
+                                          .copyWith(
+                                            fontSize: 54,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                    ),
+                                    Text(
+                                      'Good',
+                                      style: AppTextStyles.titleLarge.copyWith(
+                                        color: AppColors.success,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  'Good',
-                                  style: AppTextStyles.titleLarge.copyWith(
-                                    color: AppColors.success,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Your score is calculated based on last 30 days',
+                            style: AppTextStyles.labelSmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Your score is calculated based on last 30 days',
-                        style: AppTextStyles.labelSmall,
-                        textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Sub-score breakdown title
+                  Text(
+                    'Breakdown Analysis',
+                    style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 2x2 Grid Sub-Score Cards
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1.3,
+                    children: [
+                      _buildSubScoreCard(
+                        icon: Icons.assignment_outlined,
+                        label: 'Budget Adherence',
+                        value: subScores['Budget Adherence'] ?? 0,
+                        color: AppColors.secondary,
+                      ),
+                      _buildSubScoreCard(
+                        icon: Icons.savings_outlined,
+                        label: 'Savings Rate',
+                        value: subScores['Savings Rate'] ?? 0,
+                        color: AppColors.danger,
+                      ),
+                      _buildSubScoreCard(
+                        icon: Icons.trending_up,
+                        label: 'Goal Progress',
+                        value: subScores['Goal Progress'] ?? 0,
+                        color: AppColors.success,
+                      ),
+                      _buildSubScoreCard(
+                        icon: Icons.pie_chart_outline,
+                        label: 'Category Diversity',
+                        value:
+                            85, // Dummy since backend doesn't return this yet
+                        color: AppColors.success,
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-              // Sub-score breakdown title
-              Text(
-                'Breakdown Analysis',
-                style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
-              ),
-              const SizedBox(height: 12),
+                  // Personalized Recommendations list
+                  Text(
+                    'Personalized Coach Tips',
+                    style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
+                  ),
+                  const SizedBox(height: 12),
 
-              // 2x2 Grid Sub-Score Cards
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.3,
-                children: [
-                  _buildSubScoreCard(
-                    icon: Icons.assignment_outlined,
-                    label: 'Budget Adherence',
-                    value: subScores['budgetAdherence']!,
-                    color: AppColors.secondary,
+                  _buildCoachTipCard(
+                    icon: '💡',
+                    message:
+                        'Your savings rate is below average (55%). Try automating NPR 2,000/month to savings.',
                   ),
-                  _buildSubScoreCard(
-                    icon: Icons.savings_outlined,
-                    label: 'Savings Rate',
-                    value: subScores['savingsRate']!,
-                    color: AppColors.danger,
+                  _buildCoachTipCard(
+                    icon: '⚠️',
+                    message:
+                        'Budget adherence dropped due to Shopping overspend. Consider reducing Daraz/Shopping limits by NPR 500 next month.',
                   ),
-                  _buildSubScoreCard(
-                    icon: Icons.trending_up,
-                    label: 'Spending Consistency',
-                    value: subScores['consistency']!,
-                    color: AppColors.success,
+                  _buildCoachTipCard(
+                    icon: '✅',
+                    message:
+                        'Outstanding spending consistency! Daily cash flow is extremely stable compared to previous months.',
                   ),
-                  _buildSubScoreCard(
-                    icon: Icons.pie_chart_outline,
-                    label: 'Category Diversity',
-                    value: subScores['diversity']!,
-                    color: AppColors.success,
-                  ),
+                  const SizedBox(height: 32),
                 ],
               ),
-              const SizedBox(height: 24),
-
-              // Personalized Recommendations list
-              Text(
-                'Personalized Coach Tips',
-                style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
-              ),
-              const SizedBox(height: 12),
-
-              _buildCoachTipCard(
-                icon: '💡',
-                message: 'Your savings rate is below average (55%). Try automating NPR 2,000/month to savings.',
-              ),
-              _buildCoachTipCard(
-                icon: '⚠️',
-                message: 'Budget adherence dropped due to Shopping overspend. Consider reducing Daraz/Shopping limits by NPR 500 next month.',
-              ),
-              _buildCoachTipCard(
-                icon: '✅',
-                message: 'Outstanding spending consistency! Daily cash flow is extremely stable compared to previous months.',
-              ),
-              const SizedBox(height: 32),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (err, stack) => Scaffold(body: Center(child: Text('Error: $err'))),
     );
   }
 
@@ -229,7 +244,7 @@ class ScoreArcPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = min(size.width / 2, size.height / 2) - 8;
-    
+
     const double startAngle = pi * 0.75;
     const double sweepAngle = pi * 1.5;
 
@@ -251,14 +266,10 @@ class ScoreArcPainter extends CustomPainter {
     // Active arc gradient color (red -> orange -> green)
     final double scoreRatio = score / 100.0;
     final activeSweepAngle = sweepAngle * scoreRatio;
-    
+
     final activePaint = Paint()
       ..shader = const SweepGradient(
-        colors: [
-          AppColors.danger,
-          AppColors.secondary,
-          AppColors.success,
-        ],
+        colors: [AppColors.danger, AppColors.secondary, AppColors.success],
         stops: [0.0, 0.5, 1.0],
       ).createShader(Rect.fromCircle(center: center, radius: radius))
       ..style = PaintingStyle.stroke

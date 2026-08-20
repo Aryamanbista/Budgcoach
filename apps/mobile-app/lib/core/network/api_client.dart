@@ -17,24 +17,28 @@ class ApiClient {
   String? _accessToken;
 
   ApiClient() {
-    dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-    ));
+    dio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
 
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        if (_accessToken != null) {
-          options.headers['Authorization'] = 'Bearer $_accessToken';
-        }
-        return handler.next(options);
-      },
-      onError: (DioException e, handler) {
-        // Handle global errors here if needed
-        return handler.next(e);
-      },
-    ));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (_accessToken != null) {
+            options.headers['Authorization'] = 'Bearer $_accessToken';
+          }
+          return handler.next(options);
+        },
+        onError: (DioException e, handler) {
+          // Handle global errors here if needed
+          return handler.next(e);
+        },
+      ),
+    );
   }
 
   void setToken(String token) {

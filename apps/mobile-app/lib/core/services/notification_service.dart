@@ -13,19 +13,20 @@ class NotificationService {
     if (kIsWeb) return;
 
     tz.initializeTimeZones();
-    
+
     // Request permission for iOS/Android 13+
     await Permission.notification.request();
 
-    const initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-        
+    const initializationSettingsAndroid = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
+
     const initializationSettingsDarwin = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
-    
+
     const initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsDarwin,
@@ -50,7 +51,8 @@ class NotificationService {
     const androidDetails = AndroidNotificationDetails(
       'daily_reminder_channel',
       'Daily Reminders',
-      channelDescription: 'Reminds you to upload statements at the end of the day',
+      channelDescription:
+          'Reminds you to upload statements at the end of the day',
       importance: Importance.max,
       priority: Priority.high,
     );
@@ -66,8 +68,14 @@ class NotificationService {
 
     // Schedule for 8:00 PM every day
     final now = tz.TZDateTime.now(tz.local);
-    var scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, now.day, 20);
-    
+    var scheduledDate = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      20,
+    );
+
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }

@@ -225,14 +225,38 @@ class MockData {
   // Mock Budgets (Current Month)
   static List<BudgetModel> mockBudgets = [
     BudgetModel(category: TransactionCategory.food, limit: 8000, spent: 5200),
-    BudgetModel(category: TransactionCategory.transport, limit: 3000, spent: 2100),
-    BudgetModel(category: TransactionCategory.utilities, limit: 2000, spent: 1200),
-    BudgetModel(category: TransactionCategory.entertainment, limit: 2500, spent: 1800),
-    BudgetModel(category: TransactionCategory.shopping, limit: 4000, spent: 4300), // Over budget!
+    BudgetModel(
+      category: TransactionCategory.transport,
+      limit: 3000,
+      spent: 2100,
+    ),
+    BudgetModel(
+      category: TransactionCategory.utilities,
+      limit: 2000,
+      spent: 1200,
+    ),
+    BudgetModel(
+      category: TransactionCategory.entertainment,
+      limit: 2500,
+      spent: 1800,
+    ),
+    BudgetModel(
+      category: TransactionCategory.shopping,
+      limit: 4000,
+      spent: 4300,
+    ), // Over budget!
     BudgetModel(category: TransactionCategory.health, limit: 1500, spent: 850),
-    BudgetModel(category: TransactionCategory.education, limit: 5000, spent: 3000),
+    BudgetModel(
+      category: TransactionCategory.education,
+      limit: 5000,
+      spent: 3000,
+    ),
     BudgetModel(category: TransactionCategory.savings, limit: 10000, spent: 0),
-    BudgetModel(category: TransactionCategory.income, limit: 35000, spent: 43000), // Freelance + Salary
+    BudgetModel(
+      category: TransactionCategory.income,
+      limit: 35000,
+      spent: 43000,
+    ), // Freelance + Salary
     BudgetModel(category: TransactionCategory.festival, limit: 5000, spent: 0),
     BudgetModel(category: TransactionCategory.transfer, limit: 0, spent: 5000),
     BudgetModel(category: TransactionCategory.other, limit: 2000, spent: 0),
@@ -297,7 +321,8 @@ class MockData {
     NudgeModel(
       id: 'nudge_002',
       title: 'Transport spending warning',
-      description: 'Transport spending at 70%. NPR 900 remaining for the month.',
+      description:
+          'Transport spending at 70%. NPR 900 remaining for the month.',
       severity: NudgeSeverity.warning,
       date: DateTime.now().subtract(const Duration(days: 1)),
       category: TransactionCategory.transport,
@@ -314,7 +339,8 @@ class MockData {
     NudgeModel(
       id: 'nudge_004',
       title: 'Savings milestone achieved',
-      description: 'Great job! You\'ve put aside NPR 5,000 for your Emergency Fund.',
+      description:
+          'Great job! You\'ve put aside NPR 5,000 for your Emergency Fund.',
       severity: NudgeSeverity.info,
       date: DateTime.now().subtract(const Duration(days: 15)),
       category: TransactionCategory.savings,
@@ -340,26 +366,45 @@ class MockData {
     ForecastPoint(day: 5, amount: 3370, isPrediction: false),
     ForecastPoint(day: 6, amount: 3500, isPrediction: false),
     ForecastPoint(day: 7, amount: 3500, isPrediction: false),
-    ForecastPoint(day: 8, amount: 7800, isPrediction: false), // Daraz shopping + exam fee
+    ForecastPoint(
+      day: 8,
+      amount: 7800,
+      isPrediction: false,
+    ), // Daraz shopping + exam fee
     ForecastPoint(day: 9, amount: 7850, isPrediction: false),
     ForecastPoint(day: 10, amount: 9050, isPrediction: false), // Worldlink
     ForecastPoint(day: 11, amount: 9050, isPrediction: false),
     ForecastPoint(day: 12, amount: 10550, isPrediction: false), // Groceries
     ForecastPoint(day: 13, amount: 10550, isPrediction: false),
-    ForecastPoint(day: 14, amount: 11750, isPrediction: false), // Momo + BhatBhateni
+    ForecastPoint(
+      day: 14,
+      amount: 11750,
+      isPrediction: false,
+    ), // Momo + BhatBhateni
     ForecastPoint(day: 15, amount: 12750, isPrediction: false), // Petrol
-
     // Predictions
     ForecastPoint(day: 16, amount: 13800, isPrediction: true),
     ForecastPoint(day: 17, amount: 14800, isPrediction: true),
-    ForecastPoint(day: 18, amount: 15600, isPrediction: true), // predicted book bookstore
+    ForecastPoint(
+      day: 18,
+      amount: 15600,
+      isPrediction: true,
+    ), // predicted book bookstore
     ForecastPoint(day: 19, amount: 16300, isPrediction: true),
     ForecastPoint(day: 20, amount: 17800, isPrediction: true), // predicted gym
     ForecastPoint(day: 21, amount: 18450, isPrediction: true), // today's state
-    ForecastPoint(day: 22, amount: 19550, isPrediction: true), // predicted steam purchase
+    ForecastPoint(
+      day: 22,
+      amount: 19550,
+      isPrediction: true,
+    ), // predicted steam purchase
     ForecastPoint(day: 23, amount: 20500, isPrediction: true),
     ForecastPoint(day: 24, amount: 21000, isPrediction: true),
-    ForecastPoint(day: 25, amount: 21700, isPrediction: true), // electricity predicted
+    ForecastPoint(
+      day: 25,
+      amount: 21700,
+      isPrediction: true,
+    ), // electricity predicted
     ForecastPoint(day: 26, amount: 22800, isPrediction: true),
     ForecastPoint(day: 27, amount: 23500, isPrediction: true),
     ForecastPoint(day: 28, amount: 24150, isPrediction: true),

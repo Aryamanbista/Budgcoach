@@ -96,7 +96,10 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                 Text('Filter Transactions', style: AppTextStyles.titleLarge),
                 TextButton(
                   onPressed: _resetFilters,
-                  child: const Text('Reset', style: TextStyle(color: AppColors.danger)),
+                  child: const Text(
+                    'Reset',
+                    style: TextStyle(color: AppColors.danger),
+                  ),
                 ),
               ],
             ),
@@ -104,7 +107,12 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
             const SizedBox(height: 8),
 
             // Date Range Section
-            Text('Date Range', style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              'Date Range',
+              style: AppTextStyles.bodyLarge.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
             Row(
               children: ['This Month', 'Last Month', 'All'].map((range) {
@@ -119,7 +127,9 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                     },
                     selectedColor: AppColors.primary.withOpacity(0.15),
                     labelStyle: TextStyle(
-                      color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
                     ),
                   ),
                 );
@@ -128,7 +138,12 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
             const SizedBox(height: 16),
 
             // Category Section
-            Text('Categories', style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              'Categories',
+              style: AppTextStyles.bodyLarge.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -137,7 +152,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                 final isSelected = _selectedCategories.contains(cat);
                 return FilterChip(
                   avatar: Text(cat.emoji),
-                  label: Text(cat.name),
+                  label: Text(cat.displayName),
                   selected: isSelected,
                   onSelected: (selected) {
                     setState(() {
@@ -156,7 +171,12 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
             const SizedBox(height: 16),
 
             // Sort Section
-            Text('Sort By', style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              'Sort By',
+              style: AppTextStyles.bodyLarge.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
             Column(
               children: ['Newest', 'Oldest', 'Highest', 'Lowest'].map((sort) {

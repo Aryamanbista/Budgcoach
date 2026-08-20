@@ -6,11 +6,7 @@ class HealthScoreBadge extends StatelessWidget {
   final int score;
   final VoidCallback onTap;
 
-  const HealthScoreBadge({
-    super.key,
-    required this.score,
-    required this.onTap,
-  });
+  const HealthScoreBadge({super.key, required this.score, required this.onTap});
 
   Color _getScoreColor(int val) {
     if (val >= 80) return AppColors.success;

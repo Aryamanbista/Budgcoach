@@ -21,7 +21,17 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 90));
   String _selectedEmoji = '🎯';
 
-  final List<String> _emojis = ['🎯', '🛡️', '💻', '🏔️', '🏠', '🚗', '🎓', '✈️', '💰'];
+  final List<String> _emojis = [
+    '🎯',
+    '🛡️',
+    '💻',
+    '🏔️',
+    '🏠',
+    '🚗',
+    '🎓',
+    '✈️',
+    '💰',
+  ];
 
   @override
   void dispose() {
@@ -51,9 +61,9 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
     final startVal = double.tryParse(_startAmountController.text) ?? 0.0;
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a goal name')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter a goal name')));
       return;
     }
 
@@ -65,7 +75,8 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
     }
 
     // Calculate monthly contribution recommendation
-    final monthsLeft = (_selectedDate.difference(DateTime.now()).inDays / 30.0).clamp(1.0, 120.0);
+    final monthsLeft = (_selectedDate.difference(DateTime.now()).inDays / 30.0)
+        .clamp(1.0, 120.0);
     final needed = target - startVal;
     final monthly = needed > 0 ? (needed / monthsLeft) : 0.0;
 
@@ -84,9 +95,9 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
 
     ref.read(savingsGoalsProvider.notifier).addGoal(newGoal);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Savings goal created!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Savings goal created!')));
     Navigator.of(context).pop();
   }
 
@@ -126,7 +137,9 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
             // Emoji selector row
             Text(
               'Select Icon',
-              style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             SizedBox(
@@ -143,10 +156,14 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
                       margin: const EdgeInsets.symmetric(horizontal: 6),
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary.withOpacity(0.15) : Colors.transparent,
+                        color: isSelected
+                            ? AppColors.primary.withOpacity(0.15)
+                            : Colors.transparent,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: isSelected ? AppColors.primary : Colors.transparent,
+                          color: isSelected
+                              ? AppColors.primary
+                              : Colors.transparent,
                           width: 1.5,
                         ),
                       ),
@@ -164,7 +181,9 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
               decoration: InputDecoration(
                 labelText: 'Goal Name',
                 hintText: 'e.g., Emergency Fund',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -177,9 +196,17 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
                 labelText: 'Target Amount',
                 prefixIcon: const Padding(
                   padding: EdgeInsets.all(12.0),
-                  child: Text('NPR', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    'NPR',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -192,9 +219,17 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
                 labelText: 'Starting Balance (Optional)',
                 prefixIcon: const Padding(
                   padding: EdgeInsets.all(12.0),
-                  child: Text('NPR', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    'NPR',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -205,7 +240,9 @@ class _AddGoalSheetState extends ConsumerState<AddGoalSheet> {
               child: InputDecorator(
                 decoration: InputDecoration(
                   labelText: 'Target Date',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   suffixIcon: const Icon(Icons.calendar_today),
                 ),
                 child: Text(

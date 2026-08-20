@@ -11,8 +11,9 @@ import '../../transactions/screens/add_transaction_sheet.dart';
 import '../../transactions/widgets/transaction_list_item.dart';
 import '../../budget/providers/budget_provider.dart';
 import '../../nudges/providers/nudges_provider.dart';
+import '../../nudges/providers/nudges_provider.dart';
 import '../../../shared/models/nudge_model.dart';
-import '../../../core/mock/mock_data.dart';
+import '../../health_score/providers/health_score_provider.dart';
 import '../widgets/health_score_badge.dart';
 import '../widgets/spending_summary_card.dart';
 import '../widgets/category_chips_row.dart';
@@ -27,6 +28,9 @@ class DashboardScreen extends ConsumerWidget {
     final transactions = ref.watch(transactionsProvider);
     final budgets = ref.watch(budgetsProvider);
     final nudges = ref.watch(nudgesProvider);
+    final healthScoreAsync = ref.watch(healthScoreProvider);
+    final currentScore =
+        healthScoreAsync.valueOrNull?.score ?? 75; // Default while loading
 
     // Calculate budget & spent values dynamically
     // Exclude Income and Transfer from spending card totals
@@ -38,7 +42,13 @@ class DashboardScreen extends ConsumerWidget {
     );
 
     final totalBudget = spendingBudgets.fold(0.0, (sum, b) => sum + b.limit);
-    final totalSpent = spendingBudgets.fold(0.0, (sum, b) => sum + b.spent);
+
+    // Calculate total spent directly from actual transactions rather than mock budgets
+    final totalSpent = transactions
+        .where(
+          (tx) => tx.amount < 0 && tx.category != TransactionCategory.transfer,
+        )
+        .fold(0.0, (sum, tx) => sum + tx.amount.abs());
 
     // Find the first active WARNING nudge
     final activeWarningNudge = nudges.firstWhere(
@@ -141,7 +151,7 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                   HealthScoreBadge(
-                    score: MockData.healthScoreValue,
+                    score: currentScore,
                     onTap: () => context.push('/health-score'),
                   ),
                 ],

@@ -26,10 +26,7 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
     final historicalNudges = allNudges.where((n) => n.isDismissed).toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Alerts & Nudges'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Alerts & Nudges'), elevation: 0),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -50,14 +47,16 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
                     child: Center(
                       child: Text(
                         'All clear! No active warnings.',
-                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ),
                 )
               else
                 ...activeNudges.map((nudge) => _buildNudgeCard(nudge)),
-              
+
               const SizedBox(height: 24),
 
               // Historical Nudges Title
@@ -72,7 +71,10 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Center(
-                      child: Text('No historical logs.', style: AppTextStyles.bodyMedium),
+                      child: Text(
+                        'No historical logs.',
+                        style: AppTextStyles.bodyMedium,
+                      ),
                     ),
                   ),
                 )
@@ -82,19 +84,32 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: historicalNudges.length,
-                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final nudge = historicalNudges[index];
                       return ListTile(
                         leading: Text(
-                          nudge.severity == NudgeSeverity.critical ? '🚨' : '⚠️',
+                          nudge.severity == NudgeSeverity.critical
+                              ? '🚨'
+                              : '⚠️',
                           style: const TextStyle(fontSize: 20),
                         ),
-                        title: Text(nudge.title, style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
-                        subtitle: Text(nudge.description, style: AppTextStyles.labelSmall),
+                        title: Text(
+                          nudge.title,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          nudge.description,
+                          style: AppTextStyles.labelSmall,
+                        ),
                         trailing: Text(
                           DateFormat('dd MMM').format(nudge.date),
-                          style: AppTextStyles.labelSmall.copyWith(fontSize: 10),
+                          style: AppTextStyles.labelSmall.copyWith(
+                            fontSize: 10,
+                          ),
                         ),
                       );
                     },
@@ -109,7 +124,7 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
                 style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
               ),
               const SizedBox(height: 12),
-              
+
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -117,8 +132,15 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       SwitchListTile(
-                        title: Text('Enable Push Notifications', style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
-                        subtitle: const Text('Get notified immediately when budget limits approach overspend.'),
+                        title: Text(
+                          'Enable Push Notifications',
+                          style: AppTextStyles.bodyLarge.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: const Text(
+                          'Get notified immediately when budget limits approach overspend.',
+                        ),
                         value: _enableNotifications,
                         activeColor: AppColors.primary,
                         onChanged: (val) {
@@ -133,8 +155,19 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Warning Notification Threshold', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
-                          Text('${(_warningThreshold * 100).toInt()}%', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.secondary, fontWeight: FontWeight.bold)),
+                          Text(
+                            'Warning Notification Threshold',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '${(_warningThreshold * 100).toInt()}%',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.secondary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
                       Slider(
@@ -155,8 +188,19 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Critical Notification Threshold', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
-                          Text('${(_criticalThreshold * 100).toInt()}%', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.danger, fontWeight: FontWeight.bold)),
+                          Text(
+                            'Critical Notification Threshold',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '${(_criticalThreshold * 100).toInt()}%',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.danger,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
                       Slider(
@@ -200,7 +244,7 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
             color: AppColors.cardShadow,
             offset: Offset(0, 2),
             blurRadius: 4,
-          )
+          ),
         ],
       ),
       child: IntrinsicHeight(
@@ -232,17 +276,24 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
                         children: [
                           Text(
                             nudge.title,
-                            style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                            style: AppTextStyles.bodyLarge.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             nudge.description,
-                            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 13),
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             _formatRelativeTime(nudge.date),
-                            style: AppTextStyles.labelSmall.copyWith(fontSize: 10),
+                            style: AppTextStyles.labelSmall.copyWith(
+                              fontSize: 10,
+                            ),
                           ),
                         ],
                       ),
@@ -251,7 +302,9 @@ class _NudgesScreenState extends ConsumerState<NudgesScreen> {
                     IconButton(
                       icon: const Icon(Icons.close, size: 20),
                       onPressed: () {
-                        ref.read(nudgesProvider.notifier).dismissNudge(nudge.id);
+                        ref
+                            .read(nudgesProvider.notifier)
+                            .dismissNudge(nudge.id);
                       },
                     ),
                   ],

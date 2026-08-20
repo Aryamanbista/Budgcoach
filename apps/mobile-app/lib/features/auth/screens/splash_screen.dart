@@ -11,7 +11,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
@@ -44,10 +45,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              AppColors.primary,
-              AppColors.primaryDark,
-            ],
+            colors: [AppColors.primary, AppColors.primaryDark],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -73,12 +71,16 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 const SizedBox(height: 24),
                 Text(
                   'Budgcoach',
-                  style: AppTextStyles.displayLarge.copyWith(color: Colors.white),
+                  style: AppTextStyles.displayLarge.copyWith(
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   'Your AI Financial Coach for Nepal',
-                  style: AppTextStyles.bodyLarge.copyWith(color: Colors.white70),
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    color: Colors.white70,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
