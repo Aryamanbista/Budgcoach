@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "forecast": {
+    "architecture": "bidirectional_lstm_personal_fine_tune",
+    "base_artifact_sha256": "215d8e6a5ffc859a5faf0ae5a198515f3f49e692a9f70e4ab07fc8b94e4550b1",
+    "scaler_sha256": "dce9f5dbcf412b963cb63c62665c3a58252a71d2786198bb67e75214e02c98d4",
+    "minimum_personal_daily_observations": 180,
+    "activation_rule": "personal chronological validation MAE must be no worse than 1.02 times the best ARIMA or weighted-baseline MAE",
+    "cold_start_models": ["weighted_personal_baseline", "ARIMA"],
+    "calendar_feature": "live Nepal holiday ICS plus individual historical festival uplift"
+  },
+  "category": {
+    "architecture": "tfidf_random_forest_with_high_precision_rule_fallback",
+    "artifact_sha256": "6db2d5f1aa1e9e3fa146bf6e4ac61df5a1cd93454958f4b0f9d03c27709d93fc",
+    "output_is_advisory": true,
+    "requires_user_review_before_import": true
+  },
+  "limitations": [
+    "Base artifacts use synthetic bootstrap data and are not an accuracy claim.",
+    "The LSTM is activated only after per-user fine-tuning and chronological backtesting.",
+    "Institution-specific OCR and category accuracy must be measured on consented labelled holdout data."
+  ]
+}

@@ -37,6 +37,16 @@ class MlEngineContractTests(unittest.TestCase):
         self.assertLessEqual(body["confidence"], 1)
         self.assertIsInstance(body["is_mock"], bool)
 
+    def test_batch_category_prediction_preserves_row_order(self):
+        response = self.client.post(
+            "/api/v1/predict-categories",
+            json={"raw_texts": ["Foodmandu order", "NEA bill payment"]},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(len(response.json()), 2)
+        self.assertEqual(response.json()[0]["category"], "Food & Dining")
+        self.assertEqual(response.json()[1]["category"], "Utilities")
+
     def test_forecast_contract(self):
         response = self.client.post(
             "/api/v1/forecast",
@@ -53,8 +63,9 @@ class MlEngineContractTests(unittest.TestCase):
         self.assertIsInstance(body["budget_breach_warning"], bool)
         self.assertGreaterEqual(body["days_until_breach"], 0)
         self.assertFalse(body["is_mock"])
-        self.assertEqual(body["ai_status"]["required_days"], 30)
+        self.assertEqual(body["ai_status"]["required_days"], 180)
         self.assertEqual(body["ai_status"]["active_model"], "personal_baseline")
+        self.assertFalse(body["ai_status"]["selected_via_backtest"])
 
     def test_forecast_rejects_malformed_amount(self):
         response = self.client.post(
