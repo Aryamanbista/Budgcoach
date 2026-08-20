@@ -41,7 +41,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     super.dispose();
   }
 
-  void _nextPage() {
+  Future<void> _nextPage() async {
     if (_currentStep < 3) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
@@ -49,12 +49,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       );
     } else {
       // Complete Onboarding
-      ref.read(authProvider.notifier).completeOnboarding(
+      await ref
+          .read(authProvider.notifier)
+          .completeOnboarding(
             name: _nameController.text,
             occupation: _selectedOccupation,
             monthlyIncome: double.tryParse(_incomeController.text) ?? 35000,
           );
-      context.go('/home/dashboard');
+      if (mounted) context.go('/home/dashboard');
     }
   }
 
@@ -76,7 +78,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         elevation: 0,
         leading: _currentStep > 0
             ? IconButton(
-                icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: AppColors.textPrimary,
+                ),
                 onPressed: _prevPage,
               )
             : null,
@@ -87,7 +92,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 height: 4,
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
-                  color: index <= _currentStep ? AppColors.primary : AppColors.divider,
+                  color: index <= _currentStep
+                      ? AppColors.primary
+                      : AppColors.divider,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -147,34 +154,29 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Center(
-          child: Text(
-            '💰',
-            style: TextStyle(fontSize: 80),
-          ),
-        ),
+        const Center(child: Text('💰', style: TextStyle(fontSize: 80))),
         const SizedBox(height: 40),
-        Text(
-          'Meet Budgcoach',
-          style: AppTextStyles.displayLarge,
-        ),
+        Text('Meet Budgcoach', style: AppTextStyles.displayLarge),
         const SizedBox(height: 24),
         _buildBulletItem(
           icon: Icons.auto_graph,
           title: 'AI Spending Categorization',
-          description: 'Upload statements and let our ML model sort expenses instantly.',
+          description:
+              'Upload statements and let our ML model sort expenses instantly.',
         ),
         const SizedBox(height: 16),
         _buildBulletItem(
           icon: Icons.timeline,
           title: 'LSTM Spending Forecasts',
-          description: 'Project end-of-month totals to catch digital spending creep.',
+          description:
+              'Project end-of-month totals to catch digital spending creep.',
         ),
         const SizedBox(height: 16),
         _buildBulletItem(
           icon: Icons.notifications_active_outlined,
           title: 'Behavioral Spendception Nudges',
-          description: 'Get notifications when you overspend on impulsive categories.',
+          description:
+              'Get notifications when you overspend on impulsive categories.',
         ),
       ],
     );
@@ -196,12 +198,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             children: [
               Text(
                 title,
-                style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                style: AppTextStyles.bodyLarge.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 description,
-                style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             ],
           ),
@@ -221,25 +227,41 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           const SizedBox(height: 8),
           Text(
             'Help us tailor your budget advisor recommendation.',
-            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 32),
-          Text('Full Name', style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            'Full Name',
+            style: AppTextStyles.bodyLarge.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _nameController,
             decoration: InputDecoration(
               hintText: 'Enter your full name',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
           const SizedBox(height: 24),
-          Text('Age Group', style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            'Age Group',
+            style: AppTextStyles.bodyLarge.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _selectedAge,
             decoration: InputDecoration(
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             items: ['18–22', '23–28', '29–35', '35+']
                 .map((age) => DropdownMenuItem(value: age, child: Text(age)))
@@ -249,12 +271,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             },
           ),
           const SizedBox(height: 24),
-          Text('Occupation', style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            'Occupation',
+            style: AppTextStyles.bodyLarge.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _selectedOccupation,
             decoration: InputDecoration(
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             items: ['Student', 'Working Professional', 'Business', 'Other']
                 .map((occ) => DropdownMenuItem(value: occ, child: Text(occ)))
@@ -278,7 +307,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const SizedBox(height: 8),
         Text(
           'Which digital payment platforms do you spend on?',
-          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+          style: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
         const SizedBox(height: 24),
         Expanded(
@@ -334,7 +365,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const SizedBox(height: 8),
         Text(
           'What is your average monthly income in NPR?',
-          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+          style: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
         const SizedBox(height: 32),
         TextField(
@@ -346,7 +379,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               padding: const EdgeInsets.all(14.0),
               child: Text(
                 'NPR',
-                style: AppTextStyles.headlineMedium.copyWith(color: AppColors.primary),
+                style: AppTextStyles.headlineMedium.copyWith(
+                  color: AppColors.primary,
+                ),
               ),
             ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

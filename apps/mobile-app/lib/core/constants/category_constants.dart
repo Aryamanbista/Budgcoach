@@ -17,7 +17,7 @@ enum TransactionCategory {
 }
 
 extension TransactionCategoryExtension on TransactionCategory {
-  String get name {
+  String get displayName {
     switch (this) {
       case TransactionCategory.food:
         return 'Food & Dining';
@@ -108,7 +108,9 @@ extension TransactionCategoryExtension on TransactionCategory {
 class CategoryConstants {
   static TransactionCategory fromString(String category) {
     return TransactionCategory.values.firstWhere(
-      (e) => e.name.toLowerCase() == category.toLowerCase() || e.toString().split('.').last == category.toLowerCase(),
+      (e) =>
+          e.name.toLowerCase() == category.toLowerCase() ||
+          e.displayName.toLowerCase() == category.toLowerCase(),
       orElse: () => TransactionCategory.other,
     );
   }

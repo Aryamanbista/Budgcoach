@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +7,6 @@ import 'package:dio/dio.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/network/api_client.dart';
-import '../../transactions/providers/transactions_provider.dart';
 import '../widgets/ocr_progress_stepper.dart';
 
 class UploadScreen extends ConsumerStatefulWidget {
@@ -17,26 +17,19 @@ class UploadScreen extends ConsumerStatefulWidget {
 }
 
 class _UploadScreenState extends ConsumerState<UploadScreen> {
-  String _selectedPlatform = 'eSewa';
   String? _selectedFileName;
   String? _selectedFileSize;
   bool _isFileSelected = false;
   PlatformFile? _pickedFile;
   bool _isUploading = false;
 
-  final List<String> _platforms = [
-    'eSewa',
-    'Khalti',
-    'Nabil Bank',
-    'Sunrise Bank',
-    'Himalayan Bank',
-  ];
-
   Future<void> _pickFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.any, // Using any since custom extensions can fail silently on some web browsers
-        withData: true, // Need bytes since macOS might have sandbox issues with file paths
+        type: FileType
+            .any, // Using any since custom extensions can fail silently on some web browsers
+        withData:
+            true, // Need bytes since macOS might have sandbox issues with file paths
       );
 
       if (result != null && result.files.isNotEmpty) {
@@ -55,7 +48,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
           SnackBar(
             content: Text('Failed to open file picker: $e'),
             backgroundColor: Colors.red,
-          )
+          ),
         );
       }
     }
@@ -77,22 +70,33 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
       _isUploading = true;
     });
 
+    final completer = Completer<int>();
+
     // Show the progress stepper overlay
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => OcrProgressStepper(
-        onCompleted: () {}, // We will manually pop when upload finishes
-      ),
+      builder: (context) =>
+          OcrProgressStepper(processingFuture: completer.future),
     );
 
     try {
       final apiClient = ref.read(apiClientProvider);
-      
+      final accountsResponse = await apiClient.dio.get('/accounts/');
+      final accounts = accountsResponse.data as List<dynamic>;
+      final String accountId;
+      if (accounts.isEmpty) {
+        final created = await apiClient.dio.post(
+          '/accounts/',
+          data: {'wallet_name': 'Default Wallet', 'balance': 0},
+        );
+        accountId = created.data['id'].toString();
+      } else {
+        accountId = accounts.first['id'].toString();
+      }
+
       final formData = FormData.fromMap({
-        'wallet_type': _selectedPlatform,
-        // Passing a dummy UUID for the account ID constraint on the backend
-        'account_id': '123e4567-e89b-12d3-a456-426614174000',
+        'account_id': accountId,
         'file': MultipartFile.fromBytes(
           _pickedFile!.bytes!,
           filename: _pickedFile!.name,
@@ -104,21 +108,32 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
         data: formData,
       );
 
-      final transactions = response.data['transactions'] as List<dynamic>;
+      final preview = Map<String, dynamic>.from(
+        response.data as Map<String, dynamic>,
+      );
+      final transactions = preview['transactions'] as List<dynamic>;
+
+      // Let the stepper know we're done and how many we got
+      completer.complete(transactions.length);
+
+      // The stepper will auto-pop after showing the success state
+      // Wait for it to pop
+      await Future.delayed(const Duration(milliseconds: 1600));
 
       if (mounted) {
-        Navigator.of(context).pop(); // dismiss dialog
-        context.push('/upload/review', extra: transactions);
+        context.push('/upload/review', extra: preview);
       }
     } catch (e) {
+      if (!completer.isCompleted) {
+        completer.completeError(e);
+      }
       debugPrint('Upload failed: $e');
       if (mounted) {
-        Navigator.of(context).pop(); // dismiss dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to process statement: $e'),
             backgroundColor: Colors.red,
-          )
+          ),
         );
       }
     } finally {
@@ -133,54 +148,19 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Upload Statement'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Upload Statement'), elevation: 0),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Platform Selector Title
             Text(
-              'Select Platform',
-              style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-
-            // Platform Selector Horizontal Row
-            SizedBox(
-              height: 48,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _platforms.length,
-                itemBuilder: (context, index) {
-                  final platform = _platforms[index];
-                  final isSelected = _selectedPlatform == platform;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: ChoiceChip(
-                      label: Text(platform),
-                      selected: isSelected,
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() {
-                            _selectedPlatform = platform;
-                          });
-                        }
-                      },
-                      selectedColor: AppColors.primary.withOpacity(0.15),
-                      labelStyle: TextStyle(
-                        color: isSelected ? AppColors.primary : AppColors.textSecondary,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                  );
-                },
+              'Budgcoach detects the statement format automatically.',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
             // Upload Area
             Expanded(
@@ -204,68 +184,80 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           if (!_isFileSelected) ...[
-                          const Icon(
-                            Icons.upload_file,
-                            size: 64,
-                            color: AppColors.primary,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Tap to select a document',
-                            style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Supported formats: PDF, Excel, CSV, JPG, PNG',
-                            style: AppTextStyles.labelSmall,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          TextButton(
-                            onPressed: _pickFile,
-                            child: const Text('Or take a photo'),
-                          ),
-                        ] else ...[
-                          const Icon(
-                            Icons.picture_as_pdf,
-                            size: 64,
-                            color: Colors.red,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _selectedFileName ?? '',
-                            style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _selectedFileSize ?? '',
-                            style: AppTextStyles.labelSmall,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 24),
-                          TextButton.icon(
-                            onPressed: _clearFile,
-                            icon: const Icon(Icons.delete, color: AppColors.danger),
-                            label: const Text('Remove', style: TextStyle(color: AppColors.danger)),
-                          ),
+                            const Icon(
+                              Icons.upload_file,
+                              size: 64,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Tap to select a document',
+                              style: AppTextStyles.titleLarge.copyWith(
+                                fontSize: 16,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Supported formats: PDF, Excel, CSV, JPG, PNG',
+                              style: AppTextStyles.labelSmall,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            TextButton(
+                              onPressed: _pickFile,
+                              child: const Text('Or take a photo'),
+                            ),
+                          ] else ...[
+                            const Icon(
+                              Icons.picture_as_pdf,
+                              size: 64,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _selectedFileName ?? '',
+                              style: AppTextStyles.bodyLarge.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _selectedFileSize ?? '',
+                              style: AppTextStyles.labelSmall,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 24),
+                            TextButton.icon(
+                              onPressed: _clearFile,
+                              icon: const Icon(
+                                Icons.delete,
+                                color: AppColors.danger,
+                              ),
+                              label: const Text(
+                                'Remove',
+                                style: TextStyle(color: AppColors.danger),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
             const SizedBox(height: 24),
 
             // Process Statement Button
             ElevatedButton(
-              onPressed: _isFileSelected ? _processStatement : null,
-              child: const Text('Process Statement'),
+              onPressed: _isFileSelected && !_isUploading
+                  ? _processStatement
+                  : null,
+              child: Text(_isUploading ? 'Processing…' : 'Process Statement'),
             ),
             const SizedBox(height: 16),
 

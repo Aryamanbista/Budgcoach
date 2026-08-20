@@ -27,7 +27,8 @@ class _SetBudgetSheetState extends ConsumerState<SetBudgetSheet> {
 
     // We only allocate budgets for spending categories (exclude Income and Transfer)
     for (var cat in TransactionCategory.values) {
-      if (cat != TransactionCategory.income && cat != TransactionCategory.transfer) {
+      if (cat != TransactionCategory.income &&
+          cat != TransactionCategory.transfer) {
         final currentLimit = limits[cat] ?? 0.0;
         _controllers[cat] = TextEditingController(
           text: currentLimit > 0 ? currentLimit.toInt().toString() : '0',
@@ -48,17 +49,18 @@ class _SetBudgetSheetState extends ConsumerState<SetBudgetSheet> {
     double total = 0.0;
     _controllers.forEach((cat, controller) {
       // Exclude income/transfer
-      if (cat != TransactionCategory.income && cat != TransactionCategory.transfer) {
+      if (cat != TransactionCategory.income &&
+          cat != TransactionCategory.transfer) {
         total += double.tryParse(controller.text) ?? 0.0;
       }
     });
     return total;
   }
 
-  void _saveBudgets() {
+  Future<void> _saveBudgets() async {
     final Map<TransactionCategory, double> newLimits = {};
     final originalLimits = ref.read(budgetLimitsProvider);
-    
+
     // Copy original limits (so Income limit and Transfer limit stay preserved)
     originalLimits.forEach((cat, limit) {
       newLimits[cat] = limit;
@@ -69,12 +71,21 @@ class _SetBudgetSheetState extends ConsumerState<SetBudgetSheet> {
       newLimits[cat] = double.tryParse(controller.text) ?? 0.0;
     });
 
-    ref.read(budgetLimitsProvider.notifier).setLimits(newLimits);
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Monthly budget settings updated')),
-    );
-    Navigator.of(context).pop();
+    try {
+      await ref.read(budgetLimitsProvider.notifier).setLimits(newLimits);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Monthly budget settings updated')),
+      );
+      Navigator.of(context).pop();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not save budgets. Please try again.'),
+        ),
+      );
+    }
   }
 
   @override
@@ -113,10 +124,12 @@ class _SetBudgetSheetState extends ConsumerState<SetBudgetSheet> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            
+
             // Header stats
             Card(
-              color: isOverAllocated ? AppColors.danger.withOpacity(0.08) : AppColors.primary.withOpacity(0.08),
+              color: isOverAllocated
+                  ? AppColors.danger.withOpacity(0.08)
+                  : AppColors.primary.withOpacity(0.08),
               elevation: 0,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -126,7 +139,12 @@ class _SetBudgetSheetState extends ConsumerState<SetBudgetSheet> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Monthly Income', style: AppTextStyles.bodyMedium),
-                        Text(Formatters.formatNpr(_monthlyIncome), style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
+                        Text(
+                          Formatters.formatNpr(_monthlyIncome),
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -134,16 +152,22 @@ class _SetBudgetSheetState extends ConsumerState<SetBudgetSheet> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          isOverAllocated ? 'Over-allocated' : 'Remaining to Allocate',
+                          isOverAllocated
+                              ? 'Over-allocated'
+                              : 'Remaining to Allocate',
                           style: AppTextStyles.bodyMedium.copyWith(
-                            color: isOverAllocated ? AppColors.danger : AppColors.primary,
+                            color: isOverAllocated
+                                ? AppColors.danger
+                                : AppColors.primary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Text(
                           Formatters.formatNpr(remainingToAllocate),
                           style: AppTextStyles.bodyMedium.copyWith(
-                            color: isOverAllocated ? AppColors.danger : AppColors.primary,
+                            color: isOverAllocated
+                                ? AppColors.danger
+                                : AppColors.primary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -168,7 +192,10 @@ class _SetBudgetSheetState extends ConsumerState<SetBudgetSheet> {
                         const SizedBox(width: 12),
                         Expanded(
                           flex: 2,
-                          child: Text(cat.name, style: AppTextStyles.bodyLarge),
+                          child: Text(
+                            cat.displayName,
+                            style: AppTextStyles.bodyLarge,
+                          ),
                         ),
                         Expanded(
                           flex: 3,
@@ -177,15 +204,28 @@ class _SetBudgetSheetState extends ConsumerState<SetBudgetSheet> {
                             keyboardType: TextInputType.number,
                             textAlign: TextAlign.end,
                             onChanged: (val) {
-                              setState(() {}); // Rebuild to calculate remaining total
+                              setState(
+                                () {},
+                              ); // Rebuild to calculate remaining total
                             },
                             decoration: InputDecoration(
                               prefixIcon: const Padding(
                                 padding: EdgeInsets.all(12.0),
-                                child: Text('NPR', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                                child: Text(
+                                  'NPR',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
                           ),
                         ),
@@ -196,7 +236,7 @@ class _SetBudgetSheetState extends ConsumerState<SetBudgetSheet> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Save Button
             ElevatedButton(
               onPressed: _saveBudgets,

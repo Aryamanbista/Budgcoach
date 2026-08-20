@@ -8,15 +8,11 @@ import 'core/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await NotificationService.initialize();
   await SmsService.initialize();
 
-  runApp(
-    const ProviderScope(
-      child: BudgcoachApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: BudgcoachApp()));
 }
 
 class BudgcoachApp extends ConsumerWidget {
@@ -24,15 +20,18 @@ class BudgcoachApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
+    final appRouter = ref.watch(appRouterProvider);
+    final themeMode = ref.watch(
+      authProvider.select((state) => state.themeMode),
+    );
 
     return MaterialApp.router(
       title: 'Budgcoach',
-      debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: authState.themeMode,
+      themeMode: themeMode,
       routerConfig: appRouter,
+      debugShowCheckedModeBanner: false,
     );
   }
 }

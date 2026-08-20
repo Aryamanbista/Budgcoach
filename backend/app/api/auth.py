@@ -85,3 +85,10 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
+@router.get("/me", response_model=UserOut)
+async def read_users_me(current_user: User = Depends(get_current_user)):
+    """
+    Get current logged in user profile.
+    """
+    return current_user

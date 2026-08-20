@@ -1,10 +1,6 @@
 import '../../core/constants/category_constants.dart';
 
-enum NudgeSeverity {
-  info,
-  warning,
-  critical,
-}
+enum NudgeSeverity { info, warning, critical }
 
 class NudgeModel {
   final String id;
@@ -42,6 +38,32 @@ class NudgeModel {
       date: date ?? this.date,
       category: category ?? this.category,
       isDismissed: isDismissed ?? this.isDismissed,
+    );
+  }
+
+  factory NudgeModel.fromJson(Map<String, dynamic> json) {
+    NudgeSeverity mapSeverity(String type) {
+      switch (type) {
+        case 'warning':
+        case 'alert':
+          return NudgeSeverity.warning;
+        case 'critical':
+          return NudgeSeverity.critical;
+        case 'info':
+        case 'success':
+        default:
+          return NudgeSeverity.info;
+      }
+    }
+
+    return NudgeModel(
+      id:
+          DateTime.now().millisecondsSinceEpoch.toString() +
+          json['title'], // Dummy ID
+      title: json['title'] ?? 'Notice',
+      description: json['message'] ?? '',
+      severity: mapSeverity(json['type'] ?? 'info'),
+      date: DateTime.now(),
     );
   }
 }

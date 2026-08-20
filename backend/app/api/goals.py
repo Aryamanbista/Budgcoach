@@ -67,3 +67,23 @@ async def update_goal(
     await db.commit()
     await db.refresh(db_goal)
     return db_goal
+
+@router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_goal(
+    goal_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(SavingsGoal).filter(
+        SavingsGoal.id == goal_id,
+        SavingsGoal.user_id == current_user.id
+    ))
+    db_goal = result.scalars().first()
+    if not db_goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Savings goal not found or access denied."
+        )
+
+    await db.delete(db_goal)
+    await db.commit()

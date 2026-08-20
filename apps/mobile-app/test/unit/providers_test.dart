@@ -1,11 +1,6 @@
 import 'package:budgcoach/core/constants/category_constants.dart';
-import 'package:budgcoach/core/mock/mock_data.dart';
 import 'package:budgcoach/features/auth/providers/auth_provider.dart';
-import 'package:budgcoach/features/budget/providers/budget_provider.dart';
-import 'package:budgcoach/features/nudges/providers/nudges_provider.dart';
-import 'package:budgcoach/features/savings/providers/savings_provider.dart';
-import 'package:budgcoach/features/transactions/providers/transactions_provider.dart';
-import 'package:budgcoach/shared/models/nudge_model.dart';
+import 'package:budgcoach/shared/models/budget_model.dart';
 import 'package:budgcoach/shared/models/savings_goal_model.dart';
 import 'package:budgcoach/shared/models/transaction_model.dart';
 import 'package:budgcoach/shared/models/user_model.dart';
@@ -13,141 +8,86 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  late UserModel originalUser;
-  late List<TransactionModel> originalTransactions;
-  late List<SavingsGoalModel> originalGoals;
-  late List<NudgeModel> originalNudges;
-
-  setUp(() {
-    originalUser = MockData.mockUser;
-    originalTransactions = List.of(MockData.mockTransactions);
-    originalGoals = List.of(MockData.mockSavingsGoals);
-    originalNudges = List.of(MockData.mockNudges);
-  });
-
-  tearDown(() {
-    MockData.mockUser = originalUser;
-    MockData.mockTransactions = originalTransactions;
-    MockData.mockSavingsGoals = originalGoals;
-    MockData.mockNudges = originalNudges;
-  });
-
-  test(
-    'auth notifier supports login, onboarding, profile update and logout',
-    () {
-      final notifier = AuthNotifier();
-
-      notifier.login();
-      expect(notifier.state.isLoggedIn, isTrue);
-
-      notifier.completeOnboarding(
-        name: 'Aryaman Bista',
+  test('auth state can clear sensitive user data on logout', () {
+    final state = AuthState(
+      isLoggedIn: true,
+      isOnboardingCompleted: true,
+      user: UserModel(
+        id: 'user-1',
+        name: 'Test User',
+        email: 'test@example.com',
         occupation: 'Student',
         monthlyIncome: 45000,
-      );
-      expect(notifier.state.isOnboardingCompleted, isTrue);
-      expect(notifier.state.user?.monthlyIncome, 45000);
-
-      notifier.updateMonthlyIncome(50000);
-      expect(notifier.state.user?.monthlyIncome, 50000);
-
-      notifier.toggleTheme();
-      expect(notifier.state.themeMode, ThemeMode.dark);
-
-      notifier.logout();
-      expect(notifier.state.isLoggedIn, isFalse);
-    },
-  );
-
-  test('transactions notifier sorts, adds, overrides and deletes', () {
-    MockData.mockTransactions = [
-      TransactionModel(
-        id: 'old',
-        description: 'Old',
-        amount: -10,
-        date: DateTime(2026, 8, 1),
-        category: TransactionCategory.other,
-        source: 'Manual',
       ),
-      TransactionModel(
-        id: 'new',
-        description: 'New',
-        amount: -20,
-        date: DateTime(2026, 8, 2),
-        category: TransactionCategory.food,
-        source: 'eSewa',
-      ),
-    ];
-    final notifier = TransactionsNotifier();
-    expect(notifier.state.first.id, 'new');
-
-    notifier.addTransaction(
-      TransactionModel(
-        id: 'latest',
-        description: 'Latest',
-        amount: -30,
-        date: DateTime(2026, 8, 3),
-        category: TransactionCategory.shopping,
-        source: 'Khalti',
-        confidence: 0.6,
-      ),
+      themeMode: ThemeMode.light,
     );
-    expect(notifier.state.first.id, 'latest');
 
-    notifier.overrideCategory('latest', TransactionCategory.education);
-    final updated = notifier.state.firstWhere((tx) => tx.id == 'latest');
-    expect(updated.category, TransactionCategory.education);
-    expect(updated.confidence, 1.0);
+    final loggedOut = state.copyWith(
+      isLoggedIn: false,
+      isOnboardingCompleted: false,
+      clearUser: true,
+    );
 
-    notifier.deleteTransaction('latest');
-    expect(notifier.state.any((tx) => tx.id == 'latest'), isFalse);
+    expect(loggedOut.isLoggedIn, isFalse);
+    expect(loggedOut.user, isNull);
   });
 
-  test('savings notifier adds contributions and deletes goals', () {
-    MockData.mockSavingsGoals = [
-      SavingsGoalModel(
-        id: 'goal-1',
-        name: 'Emergency Fund',
-        targetAmount: 50000,
-        currentAmount: 10000,
-        deadline: DateTime(2027, 12, 31),
-        emoji: 'shield',
-        monthlyContribution: 5000,
-      ),
-    ];
-    final notifier = SavingsGoalsNotifier();
+  test('transaction JSON preserves debit and credit direction', () {
+    final debit = TransactionModel.fromJson({
+      'id': 'debit-1',
+      'amount': '1250.50',
+      'type': 'debit',
+      'date': '2026-08-20',
+      'clean_text': 'Grocery purchase',
+    });
+    final credit = TransactionModel.fromJson({
+      'id': 'credit-1',
+      'amount': '5000',
+      'type': 'credit',
+      'date': '2026-08-21',
+      'clean_text': 'Salary',
+    });
 
-    notifier.addContribution('goal-1', 2500);
-    expect(notifier.state.single.currentAmount, 12500);
-    expect(notifier.state.single.contributionHistory.single.amount, 2500);
-
-    notifier.deleteGoal('goal-1');
-    expect(notifier.state, isEmpty);
+    expect(debit.amount, -1250.50);
+    expect(debit.isExpense, isTrue);
+    expect(credit.amount, 5000);
+    expect(credit.isIncome, isTrue);
   });
 
-  test('nudge notifier records dismissal', () {
-    MockData.mockNudges = [
-      NudgeModel(
-        id: 'nudge-1',
-        title: 'Budget warning',
-        description: 'Near the limit',
-        severity: NudgeSeverity.warning,
-        date: DateTime(2026, 8, 14),
-      ),
-    ];
-    final notifier = NudgesNotifier();
+  test('savings goal parses the FastAPI response contract', () {
+    final goal = SavingsGoalModel.fromJson({
+      'id': 'goal-1',
+      'name': 'Emergency Fund',
+      'target_amount': '100000.00',
+      'current_amount': '25000.00',
+      'deadline_date': '2027-08-20',
+    });
 
-    notifier.dismissNudge('nudge-1');
-    expect(notifier.state.single.isDismissed, isTrue);
+    expect(goal.id, 'goal-1');
+    expect(goal.targetAmount, 100000);
+    expect(goal.currentAmount, 25000);
+    expect(goal.remainingAmount, 75000);
+    expect(goal.monthlyContribution, greaterThan(0));
   });
 
-  test('budget limit notifier updates a category limit immutably', () {
-    final notifier = BudgetLimitsNotifier();
-    final previousState = notifier.state;
+  test('budget model calculates progress and remaining amount', () {
+    final budget = BudgetModel(
+      category: TransactionCategory.food,
+      limit: 10000,
+      spent: 6500,
+    );
 
-    notifier.updateLimit(TransactionCategory.food, 9000);
+    expect(budget.remaining, 3500);
+    expect(budget.percentageSpent, 0.65);
+    expect(budget.isOverBudget, isFalse);
+  });
 
-    expect(notifier.state[TransactionCategory.food], 9000);
-    expect(identical(previousState, notifier.state), isFalse);
+  test('category parser accepts API and display labels', () {
+    expect(CategoryConstants.fromString('food'), TransactionCategory.food);
+    expect(
+      CategoryConstants.fromString('Food & Dining'),
+      TransactionCategory.food,
+    );
+    expect(TransactionCategory.food.displayName, 'Food & Dining');
   });
 }

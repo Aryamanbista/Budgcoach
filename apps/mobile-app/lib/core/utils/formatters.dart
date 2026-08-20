@@ -6,7 +6,7 @@ class Formatters {
     final absAmount = amount.abs();
     final format = NumberFormat.decimalPattern('en_IN');
     String formatted;
-    
+
     // Check if it has a decimal part
     if (absAmount == absAmount.toInt()) {
       formatted = format.format(absAmount.toInt());
@@ -14,7 +14,7 @@ class Formatters {
       // Show two decimal places for fractional amounts
       formatted = NumberFormat('#,##,##0.00', 'en_IN').format(absAmount);
     }
-    
+
     final sign = amount < 0 ? '-' : (showSign && amount > 0 ? '+' : '');
     return '${sign}NPR $formatted';
   }
@@ -33,14 +33,14 @@ class Formatters {
     }
     return '';
   }
-  
+
   /// Returns a display string for a date (e.g., "Today", "Yesterday", or "DD/MM/YYYY")
   static String formatDateToWord(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
     final compareDate = DateTime(date.year, date.month, date.day);
-    
+
     if (compareDate == today) {
       return 'TODAY';
     } else if (compareDate == yesterday) {

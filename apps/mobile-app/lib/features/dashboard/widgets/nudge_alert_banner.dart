@@ -22,14 +22,14 @@ class NudgeAlertBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFFEF3C7), // Amber 100 background
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF59E0B), width: 1), // Amber 500 border
+        border: Border.all(
+          color: const Color(0xFFF59E0B),
+          width: 1,
+        ), // Amber 500 border
       ),
       child: Row(
         children: [
-          const Text(
-            '⚠️',
-            style: TextStyle(fontSize: 24),
-          ),
+          const Text('⚠️', style: TextStyle(fontSize: 24)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(

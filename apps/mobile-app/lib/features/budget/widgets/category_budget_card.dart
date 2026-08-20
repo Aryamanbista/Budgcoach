@@ -57,7 +57,7 @@ class CategoryBudgetCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              budget.category.name,
+                              budget.category.displayName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.bodyLarge.copyWith(

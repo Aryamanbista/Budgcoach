@@ -4,9 +4,9 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 
 class OcrProgressStepper extends StatefulWidget {
-  final VoidCallback onCompleted;
+  final Future<int> processingFuture;
 
-  const OcrProgressStepper({super.key, required this.onCompleted});
+  const OcrProgressStepper({super.key, required this.processingFuture});
 
   @override
   State<OcrProgressStepper> createState() => _OcrProgressStepperState();
@@ -14,6 +14,8 @@ class OcrProgressStepper extends StatefulWidget {
 
 class _OcrProgressStepperState extends State<OcrProgressStepper> {
   int _currentStep = 0; // 0: uploading, 1: extracting, 2: categorizing, 3: done
+
+  int? _transactionCount;
 
   @override
   void initState() {
@@ -32,15 +34,27 @@ class _OcrProgressStepperState extends State<OcrProgressStepper> {
       if (mounted) setState(() => _currentStep = 2);
     });
 
-    // Step 3: AI Categorizing -> 3s delay total
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) setState(() => _currentStep = 3);
-    });
-
-    // Step 4: Done -> 4s delay total
-    Timer(const Duration(seconds: 4), () {
-      if (mounted) widget.onCompleted();
-    });
+    // Wait for the backend processing to finish
+    widget.processingFuture
+        .then((count) {
+          if (mounted) {
+            setState(() {
+              _currentStep = 3;
+              _transactionCount = count;
+            });
+            // Auto dismiss after a short success delay
+            Timer(const Duration(milliseconds: 1500), () {
+              if (mounted && Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            });
+          }
+        })
+        .catchError((e) {
+          if (mounted && Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        });
   }
 
   @override
@@ -60,24 +74,20 @@ class _OcrProgressStepperState extends State<OcrProgressStepper> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            _buildStepRow(
-              index: 0,
-              label: 'Uploading statement...',
-            ),
+            _buildStepRow(index: 0, label: 'Uploading statement...'),
             const SizedBox(height: 16),
             _buildStepRow(
               index: 1,
               label: 'Extracting transactions with OCR...',
             ),
             const SizedBox(height: 16),
-            _buildStepRow(
-              index: 2,
-              label: 'Categorizing with AI...',
-            ),
+            _buildStepRow(index: 2, label: 'Categorizing with AI...'),
             const SizedBox(height: 16),
             _buildStepRow(
               index: 3,
-              label: 'Done! 12 transactions found',
+              label: _transactionCount != null
+                  ? 'Done! $_transactionCount transactions found'
+                  : 'Finalizing extraction...',
             ),
           ],
         ),
@@ -88,29 +98,38 @@ class _OcrProgressStepperState extends State<OcrProgressStepper> {
   Widget _buildStepRow({required int index, required String label}) {
     final isDone = _currentStep > index;
     final isActive = _currentStep == index;
-    
+
     return Row(
       children: [
         SizedBox(
           width: 24,
           height: 24,
           child: isDone
-              ? const Icon(Icons.check_circle, color: AppColors.success, size: 24)
+              ? const Icon(
+                  Icons.check_circle,
+                  color: AppColors.success,
+                  size: 24,
+                )
               : isActive
-                  ? const CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)
-                  : const Icon(Icons.circle_outlined, color: Colors.grey, size: 24),
+              ? const CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.primary,
+                )
+              : const Icon(Icons.circle_outlined, color: Colors.grey, size: 24),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: Text(
             label,
             style: AppTextStyles.bodyMedium.copyWith(
-              fontWeight: isActive || isDone ? FontWeight.w600 : FontWeight.normal,
+              fontWeight: isActive || isDone
+                  ? FontWeight.w600
+                  : FontWeight.normal,
               color: isDone
                   ? AppColors.primary
                   : isActive
-                      ? Theme.of(context).colorScheme.onBackground
-                      : Colors.grey,
+                  ? Theme.of(context).colorScheme.onBackground
+                  : Colors.grey,
             ),
           ),
         ),

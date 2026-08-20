@@ -26,10 +26,7 @@ class EmptyStateWidget extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              emoji,
-              style: const TextStyle(fontSize: 64),
-            ),
+            Text(emoji, style: const TextStyle(fontSize: 64)),
             const SizedBox(height: 16),
             Text(
               title,
@@ -39,7 +36,9 @@ class EmptyStateWidget extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               description,
-              style: AppTextStyles.bodyMedium.copyWith(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              ),
               textAlign: TextAlign.center,
             ),
             if (actionLabel != null && onActionPressed != null) ...[
@@ -48,7 +47,7 @@ class EmptyStateWidget extends StatelessWidget {
                 onPressed: onActionPressed,
                 child: Text(actionLabel!),
               ),
-            ]
+            ],
           ],
         ),
       ),

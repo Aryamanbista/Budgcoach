@@ -45,15 +45,25 @@ class ShimmerListLoader extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
         child: Row(
           children: [
-            const ShimmerLoader(width: 48, height: 48, borderRadius: BorderRadius.all(Radius.circular(24))),
+            const ShimmerLoader(
+              width: 48,
+              height: 48,
+              borderRadius: BorderRadius.all(Radius.circular(24)),
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ShimmerLoader(width: MediaQuery.of(context).size.width * 0.5, height: 16),
+                  ShimmerLoader(
+                    width: MediaQuery.of(context).size.width * 0.5,
+                    height: 16,
+                  ),
                   const SizedBox(height: 8),
-                  ShimmerLoader(width: MediaQuery.of(context).size.width * 0.3, height: 12),
+                  ShimmerLoader(
+                    width: MediaQuery.of(context).size.width * 0.3,
+                    height: 12,
+                  ),
                 ],
               ),
             ),

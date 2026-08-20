@@ -9,12 +9,14 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 @pragma('vm:entry-point')
 void onBackgroundMessage(SmsMessage message) async {
   debugPrint("onBackgroundMessage called: ${message.body}");
-  
+
   if (message.body == null || message.address == null) return;
-  
+
   // Basic filter for known bank/wallet sender IDs
   final sender = message.address!.toLowerCase();
-  if (sender.contains('esewa') || sender.contains('khalti') || sender.contains('bank')) {
+  if (sender.contains('esewa') ||
+      sender.contains('khalti') ||
+      sender.contains('bank')) {
     await SmsService.syncSmsToBackend([message.body!]);
   }
 }
@@ -43,22 +45,22 @@ class SmsService {
   static Future<void> syncSmsToBackend(List<String> messages) async {
     try {
       // Create a fresh Dio instance since this might run in a background isolate
-      final dio = Dio(BaseOptions(
-        baseUrl: ApiClient.baseUrl,
-      ));
-      
-      // Attempt to retrieve token (note: secure storage in background requires careful Android setup, 
+      final dio = Dio(BaseOptions(baseUrl: ApiClient.baseUrl));
+
+      // Attempt to retrieve token (note: secure storage in background requires careful Android setup,
       // but for demonstration we attempt it)
       const storage = FlutterSecureStorage();
       final token = await storage.read(key: 'auth_token');
-      
+
       if (token != null) {
         dio.options.headers['Authorization'] = 'Bearer $token';
       }
 
       final formData = {
-        'wallet_type': 'esewa', // We can derive this from address in a full implementation
-        'account_id': '123e4567-e89b-12d3-a456-426614174000', // Dummy UUID for now
+        'wallet_type':
+            'esewa', // We can derive this from address in a full implementation
+        'account_id':
+            '123e4567-e89b-12d3-a456-426614174000', // Dummy UUID for now
         'messages': messages,
       };
 
