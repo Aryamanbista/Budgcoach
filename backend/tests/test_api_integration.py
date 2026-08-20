@@ -139,6 +139,17 @@ class BackendApiIntegrationTests(unittest.TestCase):
         response = self.client.get("/api/v1/transactions/")
         self.assertEqual(response.status_code, 401)
 
+    def test_profile_update_persists_financial_baseline(self):
+        token = self.register_and_login()
+        response = self.client.patch(
+            "/api/v1/me",
+            headers=self.auth_headers(token),
+            json={"occupation": "Engineer", "monthly_income": "85000.00"},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["occupation"], "Engineer")
+        self.assertEqual(Decimal(response.json()["monthly_income"]), Decimal("85000.00"))
+
     def test_transaction_flow_updates_balance_and_lists_user_data(self):
         token = self.register_and_login()
         account_id, category_id = self.seed_account_and_category()
@@ -172,6 +183,30 @@ class BackendApiIntegrationTests(unittest.TestCase):
             self.assertEqual(account.balance, Decimal("8800.00"))
         finally:
             db.close()
+
+    def test_transaction_export_is_authenticated_and_spreadsheet_safe(self):
+        token = self.register_and_login()
+        account_id, category_id = self.seed_account_and_category()
+        created = self.client.post(
+            "/api/v1/transactions/",
+            headers=self.auth_headers(token),
+            json={
+                "account_id": account_id,
+                "category_id": category_id,
+                "amount": "500.00",
+                "type": "debit",
+                "date": date.today().isoformat(),
+                "transaction_text": "=HYPERLINK malicious formula",
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        exported = self.client.get(
+            "/api/v1/transactions/export.csv",
+            headers=self.auth_headers(token),
+        )
+        self.assertEqual(exported.status_code, 200, exported.text)
+        self.assertIn("'=HYPERLINK malicious formula", exported.text)
+        self.assertIn("attachment;", exported.headers["content-disposition"])
 
     def test_transaction_rejects_account_not_owned_by_user(self):
         token = self.register_and_login()
@@ -219,7 +254,8 @@ class BackendApiIntegrationTests(unittest.TestCase):
         self.assertEqual(body["ai_status"]["days_logged"], 1)
         self.assertEqual(body["ai_status"]["required_days"], 30)
         self.assertEqual(body["ai_status"]["active_model"], "personal_baseline")
-        self.assertIn("learning", body["ai_status"]["learning_message"].lower())
+        self.assertEqual(body["ai_status"]["coverage_status"], "estimated")
+        self.assertIn("29 more", body["ai_status"]["learning_message"].lower())
         self.assertEqual(body["history_used"][-1]["amount"], 1250.0)
 
     def test_empty_forecast_is_a_valid_cold_start_response(self):
@@ -236,14 +272,72 @@ class BackendApiIntegrationTests(unittest.TestCase):
         self.assertEqual(body["history_used"], [])
         self.assertEqual(body["forecast"], [])
 
+    def test_verified_history_coverage_does_not_count_unobserved_gaps(self):
+        token = self.register_and_login()
+        account_id, _ = self.seed_account_and_category()
+
+        db = SyncTestingSessionLocal()
+        try:
+            user = db.query(User).filter(User.email == "aryaman@example.com").one()
+            db.add_all(
+                [
+                    ImportBatch(
+                        user_id=user.id,
+                        account_id=UUID(account_id),
+                        file_hash="a" * 64,
+                        original_filename="older.csv",
+                        status="completed",
+                        coverage_start_date=date.today() - timedelta(days=40),
+                        coverage_end_date=date.today() - timedelta(days=31),
+                        coverage_days=10,
+                        coverage_verified=True,
+                    ),
+                    ImportBatch(
+                        user_id=user.id,
+                        account_id=UUID(account_id),
+                        file_hash="b" * 64,
+                        original_filename="recent.csv",
+                        status="completed",
+                        coverage_start_date=date.today() - timedelta(days=20),
+                        coverage_end_date=date.today(),
+                        coverage_days=21,
+                        coverage_verified=True,
+                    ),
+                ]
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        response = self.client.get(
+            "/api/v1/history-coverage",
+            headers=self.auth_headers(token),
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["status"], "verified")
+        self.assertEqual(body["covered_days"], 21)
+        self.assertEqual(body["missing_days"], 9)
+        self.assertFalse(body["minimum_met"])
+
     @patch("app.api.forecast._ml_projection", new_callable=AsyncMock)
-    def test_forecast_activates_personal_ai_after_thirty_days(
+    def test_forecast_uses_validated_ml_projection_after_baseline_is_ready(
         self,
         mock_ml_projection,
     ):
         token = self.register_and_login()
         account_id, category_id = self.seed_account_and_category()
-        mock_ml_projection.return_value = (6000.0, "lstm_network")
+        mock_ml_projection.return_value = (
+            6000.0,
+            "lstm_network",
+            (),
+            {
+                "days_logged": 180,
+                "minimum_lstm_days": 180,
+                "validation_mae": 125.0,
+                "selected_via_backtest": True,
+            },
+        )
 
         db = SyncTestingSessionLocal()
         try:
@@ -272,7 +366,11 @@ class BackendApiIntegrationTests(unittest.TestCase):
 
         self.assertEqual(body["ai_status"]["readiness_percentage"], 100.0)
         self.assertEqual(body["ai_status"]["active_model"], "lstm_network")
-        self.assertEqual(body["predicted_spend"], 6000.0)
+        self.assertEqual(body["ai_status"]["coverage_status"], "estimated")
+        self.assertEqual(
+            body["predicted_spend"],
+            body["current_month_spend"] + 6000.0,
+        )
         mock_ml_projection.assert_awaited_once()
 
     def test_budget_create_duplicate_update_and_filter_flow(self):
@@ -540,6 +638,9 @@ class BackendApiIntegrationTests(unittest.TestCase):
         self.assertEqual(preview["new_count"], 2)
         self.assertEqual(preview["exact_duplicates"], 0)
         self.assertFalse(preview["file_reused"])
+        self.assertEqual(preview["coverage_start_date"], "2026-08-01")
+        self.assertEqual(preview["coverage_end_date"], "2026-08-02")
+        self.assertEqual(preview["coverage_days"], 2)
 
         decisions = [
             {
@@ -559,6 +660,11 @@ class BackendApiIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(committed.status_code, 200, committed.text)
         self.assertEqual(committed.json()["imported_count"], 2)
+        self.assertEqual(
+            committed.json()["history_coverage"]["status"],
+            "verified",
+        )
+        self.assertEqual(committed.json()["history_coverage"]["covered_days"], 2)
 
         repeated_commit = self.client.post(
             f"/api/v1/import-batches/{preview['batch_id']}/commit",
@@ -629,6 +735,16 @@ class BackendApiIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(overlap_commit.status_code, 200, overlap_commit.text)
         self.assertEqual(overlap_commit.json()["imported_count"], 1)
+        self.assertEqual(
+            overlap_commit.json()["history_coverage"]["covered_days"],
+            3,
+        )
+
+        coverage = self.client.get("/api/v1/history-coverage", headers=headers)
+        self.assertEqual(coverage.status_code, 200, coverage.text)
+        self.assertEqual(coverage.json()["status"], "verified")
+        self.assertEqual(coverage.json()["covered_days"], 3)
+        self.assertEqual(coverage.json()["missing_days"], 27)
 
         db = SyncTestingSessionLocal()
         try:

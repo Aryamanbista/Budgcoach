@@ -1,7 +1,9 @@
 import uuid
 
 from sqlalchemy import (
+    Boolean,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -51,6 +53,10 @@ class ImportBatch(Base):
     imported_count = Column(Integer, nullable=False, default=0)
     skipped_count = Column(Integer, nullable=False, default=0)
     parsed_payload = Column(JSON, nullable=False, default=list)
+    coverage_start_date = Column(Date, nullable=True)
+    coverage_end_date = Column(Date, nullable=True)
+    coverage_days = Column(Integer, nullable=False, default=0)
+    coverage_verified = Column(Boolean, nullable=False, default=False)
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

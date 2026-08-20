@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 import logging
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, Field
+from typing import Annotated, List
 
 from app.api.auth import get_current_user
 from app.core.database import get_db
@@ -19,9 +19,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class SmsSyncRequest(BaseModel):
-    wallet_type: str
+    wallet_type: str = Field(min_length=1, max_length=80)
     account_id: UUID
-    messages: List[str]
+    messages: List[Annotated[str, Field(min_length=1, max_length=1000)]] = Field(
+        min_length=1,
+        max_length=100,
+    )
 
 @router.post("/sms-sync", response_model=SmsSyncResponse)
 async def sync_sms(
@@ -90,6 +93,8 @@ async def sync_sms(
             total_parsed=len(transactions),
             duplicates_found=duplicates_found
         )
+    except HTTPException:
+        raise
     except Exception as parse_err:
         logger.error(f"SMS Parser failed: {parse_err}")
         raise HTTPException(

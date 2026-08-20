@@ -13,6 +13,8 @@ from app.models.category import Category
 from app.models.nudge import Nudge
 from app.models.savings_goal import SavingsGoal
 from app.models.transaction import Transaction
+from app.services.history_coverage_service import get_history_coverage
+from app.services.festival_calendar_service import get_festival_events
 
 
 @dataclass(frozen=True)
@@ -357,32 +359,63 @@ async def build_personalized_nudges(
                 )
             )
 
-    history_result = await db.execute(
-        select(func.min(Transaction.date), func.max(Transaction.date)).where(
-            Transaction.user_id == user_id
-        )
-    )
-    first_date, last_date = history_result.one()
-    coverage_days = (last_date - first_date).days + 1 if first_date and last_date else 0
-    if coverage_days < 30:
-        remaining_days = 30 - coverage_days
+    coverage = await get_history_coverage(db, user_id=user_id, today=today)
+    if not coverage.minimum_met or not coverage.is_fresh:
         candidates.append(
             NudgeCandidate(
-                key=f"data-readiness:{month_key}:{coverage_days // 5}",
-                type="info",
-                title="Help Budgcoach learn your spending",
-                message=(
-                    f"Add {remaining_days} more days of transaction history for a more "
-                    "personal forecast and better-timed nudges."
+                key=(
+                    f"data-readiness:{month_key}:{coverage.status}:"
+                    f"{coverage.covered_days // 5}:{coverage.is_fresh}"
                 ),
+                type="info",
+                title=(
+                    "Refresh your transaction history"
+                    if coverage.minimum_met
+                    else "Help Budgcoach learn your spending"
+                ),
+                message=coverage.message,
                 priority=35,
                 expires_at=month_expiry,
                 action_label="Upload statement",
                 action_route="/home/upload",
                 metric_data={
-                    "days_logged": coverage_days,
-                    "required_days": 30,
-                    "readiness_percentage": round(min(100, coverage_days / 30 * 100), 1),
+                    "days_logged": coverage.covered_days,
+                    "required_days": coverage.required_days,
+                    "readiness_percentage": coverage.readiness_percentage,
+                    "coverage_status": coverage.status,
+                    "is_fresh": coverage.is_fresh,
+                },
+            )
+        )
+
+    upcoming_events = await get_festival_events(today, today + timedelta(days=21))
+    major_event = next(
+        (event for event in upcoming_events if event.is_major and event.date >= today),
+        None,
+    )
+    if major_event is not None:
+        days_until = (major_event.date - today).days
+        candidates.append(
+            NudgeCandidate(
+                key=f"festival-plan:{major_event.festival_type}:{major_event.date.isoformat()}",
+                type="info",
+                title=f"Plan ahead for {major_event.name}",
+                message=(
+                    f"{major_event.name} is in {days_until} day{'s' if days_until != 1 else ''}. "
+                    "Your forecast includes this festival window; set or review category budgets now."
+                ),
+                priority=50,
+                expires_at=datetime.combine(
+                    major_event.date,
+                    time.max,
+                    tzinfo=timezone.utc,
+                ),
+                action_label="Review forecast",
+                action_route="/home/forecast",
+                metric_data={
+                    "festival": major_event.name,
+                    "festival_date": major_event.date.isoformat(),
+                    "days_until": days_until,
                 },
             )
         )

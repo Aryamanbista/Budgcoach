@@ -21,6 +21,8 @@ class ParsedTransactionPreview(BaseModel):
     duplicate_status: DuplicateStatus = "new"
     duplicate_of: Optional[UUID] = None
     validation_messages: List[str] = Field(default_factory=list)
+    suggested_category: str = "Other"
+    category_confidence: float = Field(default=0.0, ge=0, le=1)
 
 
 class UploadResponse(BaseModel):
@@ -34,6 +36,22 @@ class UploadResponse(BaseModel):
     exact_duplicates: int
     possible_duplicates: int
     validation_errors: int
+    coverage_start_date: Optional[Date] = None
+    coverage_end_date: Optional[Date] = None
+    coverage_days: int = 0
+
+
+class HistoryCoverageResponse(BaseModel):
+    status: Literal["verified", "estimated", "none"]
+    start_date: Optional[Date] = None
+    end_date: Optional[Date] = None
+    covered_days: int
+    required_days: int
+    readiness_percentage: float
+    minimum_met: bool
+    missing_days: int
+    is_fresh: bool
+    message: str
 
 
 class ImportRowDecision(BaseModel):
@@ -67,3 +85,4 @@ class CommitImportResponse(BaseModel):
     imported_count: int
     duplicates_skipped: int
     excluded_count: int
+    history_coverage: HistoryCoverageResponse

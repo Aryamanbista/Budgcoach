@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import os
 from datetime import datetime, time, timezone
 from decimal import Decimal
 from difflib import SequenceMatcher
@@ -7,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +23,7 @@ from app.models.user import User
 from app.schemas.upload import (
     CommitImportRequest,
     CommitImportResponse,
+    HistoryCoverageResponse,
     ParsedTransactionPreview,
     UploadResponse,
 )
@@ -31,13 +34,65 @@ from app.services.import_service import (
     normalize_description,
 )
 from app.services.parser_service import reconcile_balances
+from app.services.history_coverage_service import (
+    HistoryCoverage,
+    get_history_coverage,
+)
+from app.services.file_validation_service import (
+    InvalidStatementFile,
+    validate_statement_file,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_PARSED_ROWS = 5000
 SUPPORTED_EXTENSIONS = {"pdf", "xlsx", "xls", "csv", "jpg", "jpeg", "png"}
 PARSER_VERSION = "1.0"
+ML_ENGINE_URL = os.getenv("ML_ENGINE_URL", "http://localhost:8001")
+CATEGORY_TIMEOUT_SECONDS = float(os.getenv("CATEGORY_TIMEOUT_SECONDS", "5"))
+KNOWN_CATEGORIES = {
+    "Food & Dining",
+    "Transport",
+    "Shopping",
+    "Entertainment",
+    "Health",
+    "Utilities",
+    "Education",
+    "Savings",
+    "Income",
+    "Festival",
+    "Transfer",
+    "Other",
+}
+
+
+async def get_category_suggestions(descriptions: list[str]) -> list[tuple[str, float]]:
+    if not descriptions:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=CATEGORY_TIMEOUT_SECONDS) as client:
+            predictions = []
+            for start in range(0, len(descriptions), 500):
+                response = await client.post(
+                    f"{ML_ENGINE_URL}/api/v1/predict-categories",
+                    json={"raw_texts": descriptions[start:start + 500]},
+                )
+                response.raise_for_status()
+                predictions.extend(response.json())
+        suggestions = []
+        for prediction in predictions:
+            category = str(prediction.get("category", "Other"))
+            if category not in KNOWN_CATEGORIES:
+                category = "Other"
+            confidence = min(1.0, max(0.0, float(prediction.get("confidence", 0))))
+            suggestions.append((category, confidence))
+        if len(suggestions) == len(descriptions):
+            return suggestions
+    except (httpx.HTTPError, TypeError, ValueError):
+        logger.info("Category service unavailable; import review will use Other.")
+    return [("Other", 0.0) for _ in descriptions]
 
 
 def parse_date(value: Optional[str]) -> Optional[datetime]:
@@ -51,6 +106,11 @@ def parse_date(value: Optional[str]) -> Optional[datetime]:
         "%Y/%m/%d",
         "%d/%m/%Y",
         "%m/%d/%Y",
+        "%d-%m-%Y",
+        "%d-%m-%y",
+        "%d/%m/%y",
+        "%d %b %Y",
+        "%d %B %Y",
     )
     for date_format in formats:
         try:
@@ -76,7 +136,34 @@ def response_from_batch(batch: ImportBatch, *, file_reused: bool) -> UploadRespo
         exact_duplicates=batch.exact_duplicate_count,
         possible_duplicates=batch.possible_duplicate_count,
         validation_errors=batch.validation_error_count,
+        coverage_start_date=batch.coverage_start_date,
+        coverage_end_date=batch.coverage_end_date,
+        coverage_days=batch.coverage_days,
     )
+
+
+def coverage_response(coverage: HistoryCoverage) -> HistoryCoverageResponse:
+    return HistoryCoverageResponse(
+        status=coverage.status,
+        start_date=coverage.start_date,
+        end_date=coverage.end_date,
+        covered_days=coverage.covered_days,
+        required_days=coverage.required_days,
+        readiness_percentage=coverage.readiness_percentage,
+        minimum_met=coverage.minimum_met,
+        missing_days=coverage.missing_days,
+        is_fresh=coverage.is_fresh,
+        message=coverage.message,
+    )
+
+
+@router.get("/history-coverage", response_model=HistoryCoverageResponse)
+async def history_coverage(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    coverage = await get_history_coverage(db, user_id=current_user.id)
+    return coverage_response(coverage)
 
 
 async def require_account(
@@ -129,6 +216,14 @@ async def upload_statement(
             detail="The maximum statement size is 20 MB.",
         )
 
+    try:
+        validate_statement_file(file_bytes, filename)
+    except InvalidStatementFile as error:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=str(error),
+        ) from error
+
     file_hash = hashlib.sha256(file_bytes).hexdigest()
     existing_result = await db.execute(
         select(ImportBatch).where(
@@ -155,8 +250,16 @@ async def upload_statement(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="No transaction rows could be extracted from this document.",
         )
+    if len(extracted_rows) > MAX_PARSED_ROWS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"A statement can contain at most {MAX_PARSED_ROWS} transaction rows.",
+        )
 
     reconciliation_failures = set(reconcile_balances(extracted_rows))
+    category_suggestions = await get_category_suggestions(
+        [(row.description or row.raw_text or "").strip() for row in extracted_rows]
+    )
     previews: list[ParsedTransactionPreview] = []
     seen_fingerprints: set[str] = set()
     seen_rows: list[tuple[datetime, Decimal, str, str]] = []
@@ -269,9 +372,14 @@ async def upload_statement(
                 duplicate_status=duplicate_status,
                 duplicate_of=duplicate_of,
                 validation_messages=messages,
+                suggested_category=category_suggestions[index][0],
+                category_confidence=category_suggestions[index][1],
             )
         )
 
+    coverage_dates = [item.date for item in previews if item.date is not None]
+    coverage_start = min(coverage_dates) if coverage_dates else None
+    coverage_end = max(coverage_dates) if coverage_dates else None
     batch = ImportBatch(
         user_id=current_user.id,
         account_id=account_id,
@@ -294,6 +402,14 @@ async def upload_statement(
             item.model_dump(mode="json")
             for item in previews
         ],
+        coverage_start_date=coverage_start,
+        coverage_end_date=coverage_end,
+        coverage_days=(
+            (coverage_end - coverage_start).days + 1
+            if coverage_start is not None and coverage_end is not None
+            else 0
+        ),
+        coverage_verified=False,
     )
     db.add(batch)
     await db.commit()
@@ -324,6 +440,7 @@ async def commit_import_batch(
         raise HTTPException(status_code=404, detail="Import batch not found.")
 
     if batch.status == "completed":
+        coverage = await get_history_coverage(db, user_id=current_user.id)
         return CommitImportResponse(
             batch_id=batch.id,
             status=batch.status,
@@ -333,6 +450,7 @@ async def commit_import_batch(
                 0,
                 batch.total_parsed - batch.imported_count - batch.skipped_count,
             ),
+            history_coverage=coverage_response(coverage),
         )
     if batch.status != "previewed":
         raise HTTPException(
@@ -357,6 +475,13 @@ async def commit_import_batch(
             status_code=400,
             detail="One or more rows do not belong to this import batch.",
         )
+
+    coverage_dates = [
+        decision.date
+        for decision in payload.rows
+        if decision.date is not None
+        and stored_rows[decision.row_index]["duplicate_status"] != "invalid"
+    ]
 
     category_cache: dict[str, Optional[UUID]] = {}
     imported_count = 0
@@ -437,7 +562,16 @@ async def commit_import_batch(
     batch.imported_count = imported_count
     batch.skipped_count = duplicates_skipped
     batch.completed_at = datetime.now(timezone.utc)
+    if coverage_dates:
+        batch.coverage_start_date = min(coverage_dates)
+        batch.coverage_end_date = max(coverage_dates)
+        batch.coverage_days = (
+            batch.coverage_end_date - batch.coverage_start_date
+        ).days + 1
+        batch.coverage_verified = True
     await db.commit()
+
+    coverage = await get_history_coverage(db, user_id=current_user.id)
 
     return CommitImportResponse(
         batch_id=batch.id,
@@ -445,4 +579,5 @@ async def commit_import_batch(
         imported_count=imported_count,
         duplicates_skipped=duplicates_skipped,
         excluded_count=excluded_count,
+        history_coverage=coverage_response(coverage),
     )

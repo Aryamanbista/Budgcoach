@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserOut, Token, TokenData
+from app.schemas.user import UserCreate, UserLogin, UserOut, UserUpdate, Token, TokenData
 from app.services import auth_service
 
 router = APIRouter()
@@ -91,4 +91,17 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
     """
     Get current logged in user profile.
     """
+    return current_user
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_users_me(
+    payload: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(current_user, field, value)
+    await db.commit()
+    await db.refresh(current_user)
     return current_user

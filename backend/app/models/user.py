@@ -12,6 +12,8 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     name = Column(String, nullable=False, default="")
     full_name = Column(String, nullable=True)
+    occupation = Column(String, nullable=True)
+    monthly_income = Column(Numeric(14, 2), nullable=False, default=0)
     financial_score = Column(Numeric(5, 2), default=0.00)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

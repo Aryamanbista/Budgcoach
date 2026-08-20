@@ -1,5 +1,6 @@
 import re
 import logging
+from decimal import Decimal, InvalidOperation
 from typing import List, Dict, Any, Optional
 
 from app.schemas.transaction import TransactionRow
@@ -7,12 +8,27 @@ from app.schemas.transaction import TransactionRow
 logger = logging.getLogger(__name__)
 
 HEADER_ALIASES = {
-    "date":        ["date", "txn date", "value date", "posting date", "transaction date", "ansaction date"],
-    "description": ["description", "narration", "particulars", "details", "remarks", "escription"],
-    "debit":       ["debit", "withdrawal", "dr", "debit amount"],
-    "credit":      ["credit", "deposit", "cr", "credit amount"],
-    "balance":     ["balance", "closing balance", "running balance"],
+    "date": ["date", "txn date", "value date", "posting date", "transaction date", "ansaction date"],
+    "description": ["description", "narration", "particulars", "details", "remarks", "transaction details", "merchant", "escription"],
+    "debit": ["debit", "withdrawal", "withdrawals", "dr", "debit amount", "paid out"],
+    "credit": ["credit", "deposit", "deposits", "cr", "credit amount", "paid in"],
+    "amount": ["amount", "transaction amount", "txn amount"],
+    "type": ["type", "transaction type", "txn type", "dr/cr", "debit/credit"],
+    "balance": ["balance", "closing balance", "running balance", "available balance"],
 }
+
+DATE_PATTERN = re.compile(
+    r"(?<!\d)(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})(?!\d)",
+    re.IGNORECASE,
+)
+TYPE_PATTERN = re.compile(
+    r"\b(?P<type>dr|cr|debit(?:ed)?|credit(?:ed)?|withdraw(?:al|n)?|deposit(?:ed)?|sent|received|paid|purchase|refund(?:ed)?|cash\s+out|cash\s+in)\b",
+    re.IGNORECASE,
+)
+MONEY_PATTERN = re.compile(
+    r"(?<![\w./-])(?:NPR|NRs?\.?|Rs\.?)?\s*(?P<amount>\(?-?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\)?|-?\d+(?:\.\d{1,2})?)(?![\w./-])",
+    re.IGNORECASE,
+)
 
 def normalize_headers(raw_headers: List[str]) -> Dict[str, str]:
     """
@@ -24,38 +40,91 @@ def normalize_headers(raw_headers: List[str]) -> Dict[str, str]:
         for raw in raw_headers:
             if not raw or not isinstance(raw, str):
                 continue
-            if raw.lower().strip() in aliases:
+            normalized = re.sub(r"\s+", " ", raw.lower().replace("\n", " ")).strip(" :._-")
+            if normalized in aliases or any(
+                len(alias) >= 5 and alias in normalized for alias in aliases
+            ):
                 mapping[standard_key] = raw
                 break
     return mapping
+
+
+def parse_money(value: Any) -> Optional[float]:
+    """Parse common NPR statement amounts without accepting arbitrary text."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "none", "-", "--"}:
+        return None
+    negative = text.startswith("(") and text.endswith(")")
+    cleaned = re.sub(r"(?i)\b(?:npr|nrs|rs)\.?\b", "", text)
+    cleaned = cleaned.replace(",", "").replace(" ", "").strip("()")
+    cleaned = re.sub(r"(?i)(?:dr|cr)$", "", cleaned)
+    try:
+        amount = Decimal(cleaned)
+    except (InvalidOperation, ValueError):
+        return None
+    return float(-amount if negative else amount)
+
+
+def transaction_type_from_text(value: Any) -> Optional[str]:
+    match = TYPE_PATTERN.search(str(value or ""))
+    if not match:
+        return None
+    token = re.sub(r"\s+", " ", match.group("type").lower())
+    if token in {"cr", "credit", "credited", "deposit", "deposited", "received", "refund", "refunded", "cash in"}:
+        return "credit"
+    return "debit"
 
 def regex_fallback(raw_text: str) -> Optional[TransactionRow]:
     """
     Used only when structured extraction completely fails (e.g., OCR fallback).
     Tries a generic regex to pull date, amount, and type.
     """
-    generic_pattern = re.compile(
-        r"(?i)(?P<date>\d{2,4}[-/]\d{2}[-/]\d{2,4}).*?(?P<type>dr|cr|debited|credited|withdrawal|deposit)\s+(?P<amount>\d+(?:\.\d{2})?)"
-    )
-    match = generic_pattern.search(raw_text)
-    if not match:
+    date_match = DATE_PATTERN.search(raw_text)
+    type_match = TYPE_PATTERN.search(raw_text)
+    if not date_match or not type_match:
         return None
-        
-    date_str = match.group('date')
-    tx_type = match.group('type').lower()
-    amount = float(match.group('amount'))
+
+    candidates = []
+    for money_match in MONEY_PATTERN.finditer(raw_text):
+        # Dates contain number-like fragments; ignore anything overlapping the date.
+        if money_match.start() < date_match.end() and money_match.end() > date_match.start():
+            continue
+        amount = parse_money(money_match.group("amount"))
+        if amount is None or amount == 0:
+            continue
+        distance = min(
+            abs(money_match.start() - type_match.end()),
+            abs(type_match.start() - money_match.end()),
+        )
+        has_currency = bool(re.search(r"(?i)(?:NPR|NRs?\.?|Rs\.?)", money_match.group(0)))
+        candidates.append((0 if has_currency else 1, distance, money_match, abs(amount)))
+    if not candidates:
+        return None
+    _, _, amount_match, amount = min(candidates, key=lambda item: (item[0], item[1]))
+
+    date_str = date_match.group(0)
+    transaction_type = transaction_type_from_text(type_match.group(0))
+    if transaction_type is None:
+        return None
+
+    description = raw_text
+    for match in sorted([date_match, type_match, amount_match], key=lambda item: item.start(), reverse=True):
+        description = description[:match.start()] + " " + description[match.end():]
+    description = re.sub(r"\s+", " ", description).strip(" |-:") or "Imported transaction"
     
     row = TransactionRow(
         date=date_str,
-        description="Parsed via Regex Fallback",
+        description=description[:300],
         raw_text=raw_text,
         source_format="image_ocr",
         confidence=0.5
     )
     
-    if tx_type in ['debited', 'dr', 'withdrawal']:
+    if transaction_type == "debit":
         row.debit = amount
-    elif tx_type in ['credited', 'cr', 'deposit']:
+    else:
         row.credit = amount
         
     return row
@@ -126,7 +195,7 @@ async def parse_transactions(text: str, wallet_type: str, user_id: str, account_
     # Or Khalti: "Rs. 200 credited to Khalti on 2023-10-26"
     # This regex is simplified for the demo but captures amount, type, date.
     pattern = re.compile(
-        r"(?i)(?:rs\.?|npr)\s*(?P<amount>\d+(?:\.\d{2})?)\s+(?P<type>debited|credited|sent|received|paid).*?(?P<date>\d{4}[-/]\d{2}[-/]\d{2}|\d{2}[-/]\d{2}[-/]\d{4})"
+        r"(?i)(?:rs\.?|npr|nrs\.?)\s*(?P<amount>\d[\d,]*(?:\.\d{1,2})?)\s+(?P<type>debited|credited|sent|received|paid|withdrawn|deposited).*?(?P<date>\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\d{1,2}[- ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[- ]\d{2,4})"
     )
     
     seen_in_batch = set() # To track intra-batch duplicates
@@ -147,11 +216,11 @@ async def parse_transactions(text: str, wallet_type: str, user_id: str, account_
         date_str = match.group('date')
         
         try:
-            amount = float(amount_str)
+            amount = float(amount_str.replace(",", ""))
         except ValueError:
             continue
             
-        is_debit = type_str in ['debited', 'sent', 'paid']
+        is_debit = type_str in ['debited', 'sent', 'paid', 'withdrawn']
         tx_type = "debit" if is_debit else "credit"
         
         # Simple date parsing
@@ -159,10 +228,14 @@ async def parse_transactions(text: str, wallet_type: str, user_id: str, account_
             # Try YYYY-MM-DD
             if len(date_str) == 10 and date_str[4] in ['-', '/']:
                 tx_date = datetime.strptime(date_str.replace('/', '-'), "%Y-%m-%d")
+            elif len(date_str) >= 8 and date_str[2] in ['-', '/'] and date_str[5] in ['-', '/']:
+                numeric_format = "%d-%m-%Y" if len(date_str) == 10 else "%d-%m-%y"
+                tx_date = datetime.strptime(date_str.replace('/', '-'), numeric_format)
             else:
-                tx_date = datetime.strptime(date_str.replace('/', '-'), "%d-%m-%Y")
+                tx_date = datetime.strptime(date_str.replace("-", " "), "%d %b %y")
         except ValueError:
-            tx_date = datetime.now() # Fallback
+            logger.warning("SMS Parser: invalid transaction date: %s", date_str)
+            continue
             
         # For SMS, we use the raw line as the description
         description = line[:100] # Truncate if too long

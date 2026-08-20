@@ -15,12 +15,16 @@ from app.models.budget import Budget
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.services.history_coverage_service import get_history_coverage
+from app.services.festival_calendar_service import FestivalEvent, get_festival_events
 
 router = APIRouter()
 
 ML_ENGINE_URL = os.getenv("ML_ENGINE_URL", "http://localhost:8001")
+ML_ENGINE_TIMEOUT_SECONDS = float(os.getenv("ML_ENGINE_TIMEOUT_SECONDS", "45"))
 REQUIRED_HISTORY_DAYS = 30
-HISTORY_WINDOW_DAYS = 90
+HISTORY_WINDOW_DAYS = 365
+LSTM_HISTORY_DAYS = 180
 
 
 class ForecastPoint(BaseModel):
@@ -34,6 +38,12 @@ class AIStatus(BaseModel):
     readiness_percentage: float
     active_model: str
     learning_message: str
+    coverage_status: str
+    is_fresh: bool
+    training_days_logged: int
+    training_required_days: int
+    validation_mae: float | None = None
+    selected_via_backtest: bool = False
 
 
 class ForecastResponse(BaseModel):
@@ -47,6 +57,14 @@ class ForecastResponse(BaseModel):
     ai_status: AIStatus
     history_used: List[ForecastPoint]
     forecast: List[ForecastPoint]
+    upcoming_festivals: List["FestivalForecastEvent"]
+
+
+class FestivalForecastEvent(BaseModel):
+    date: date
+    name: str
+    festival_type: str
+    is_major: bool
 
 
 def _daily_series(rows, start_date: date, end_date: date) -> list[ForecastPoint]:
@@ -108,12 +126,33 @@ def _future_projection(
     return points
 
 
-async def _ml_projection(history: list[ForecastPoint]) -> tuple[float, str] | None:
+async def _ml_projection(
+    history: list[ForecastPoint],
+    horizon_days: int = 30,
+    profile_id: str = "anonymous",
+) -> tuple[float, str, tuple[FestivalEvent, ...], dict] | None:
+    if not history:
+        return None
+    festivals = await get_festival_events(
+        history[0].date,
+        date.today() + timedelta(days=horizon_days),
+    )
     payload = {
-        "history": [point.model_dump(mode="json") for point in history[-30:]],
+        "history": [point.model_dump(mode="json") for point in history[-365:]],
+        "profile_id": profile_id,
+        "forecast_days": horizon_days,
+        "festivals": [
+            {
+                "date": event.date.isoformat(),
+                "name": event.name,
+                "festival_type": event.festival_type,
+                "is_major": event.is_major,
+            }
+            for event in festivals
+        ],
     }
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
+        async with httpx.AsyncClient(timeout=ML_ENGINE_TIMEOUT_SECONDS) as client:
             response = await client.post(
                 f"{ML_ENGINE_URL}/api/v1/forecast",
                 json=payload,
@@ -125,7 +164,7 @@ async def _ml_projection(history: list[ForecastPoint]) -> tuple[float, str] | No
             "active_model",
             "lstm_network",
         )
-        return predicted, active_model
+        return predicted, active_model, festivals, body.get("ai_status", {})
     except (httpx.HTTPError, KeyError, TypeError, ValueError):
         return None
 
@@ -152,17 +191,17 @@ async def get_forecast(
         .order_by(Transaction.date)
     )
     rows = (await db.execute(history_query)).all()
+    coverage = await get_history_coverage(db, user_id=current_user.id, today=today)
+    days_logged = min(HISTORY_WINDOW_DAYS, coverage.covered_days)
 
-    if rows:
-        first_observed_date = rows[0].date
-        days_logged = min(
-            HISTORY_WINDOW_DAYS,
-            (today - first_observed_date).days + 1,
-        )
-        daily_history = _daily_series(rows, first_observed_date, today)
-    else:
-        days_logged = 0
-        daily_history = []
+    series_start = coverage.start_date
+    if series_start is None and rows:
+        series_start = rows[0].date
+    daily_history = (
+        _daily_series(rows, max(series_start, history_start), today)
+        if series_start is not None
+        else []
+    )
 
     month_start = today.replace(day=1)
     month_daily = [point for point in daily_history if point.date >= month_start]
@@ -175,11 +214,24 @@ async def get_forecast(
 
     active_model = "personal_baseline"
     projected_spend = baseline_projection
+    upcoming_festivals: tuple[FestivalEvent, ...] = ()
+    model_status: dict = {}
     if days_logged >= 3:
-        ml_result = await _ml_projection(daily_history)
+        remaining_days = max(1, days_in_month - today.day)
+        ml_result = await _ml_projection(
+            daily_history,
+            remaining_days,
+            str(current_user.id),
+        )
         if ml_result is not None:
-            ml_projection, active_model = ml_result
-            projected_spend = max(current_month_spend, ml_projection)
+            ml_projection, active_model, festivals, model_status = ml_result
+            projected_spend = max(
+                current_month_spend,
+                current_month_spend + ml_projection,
+            )
+            upcoming_festivals = tuple(
+                event for event in festivals if today < event.date <= today + timedelta(days=remaining_days)
+            )
 
     projected_spend = round(max(current_month_spend, projected_spend), 2)
 
@@ -203,21 +255,16 @@ async def get_forecast(
                 break
 
     readiness = min(100.0, (days_logged / REQUIRED_HISTORY_DAYS) * 100.0)
-    remaining_learning_days = max(0, REQUIRED_HISTORY_DAYS - days_logged)
     if readiness < 100:
-        learning_message = (
-            "Budgcoach is learning your spending rhythm. "
-            f"Add {remaining_learning_days} more days of history to unlock "
-            "the personal AI forecast."
-        )
+        learning_message = coverage.message
     elif active_model == "lstm_network":
         learning_message = (
             "Your personal AI forecast is active and improves with every transaction."
         )
     else:
         learning_message = (
-            "Your history is ready. A personal baseline is active while the "
-            "AI service reconnects."
+            f"Your 30-day baseline is ready. Budgcoach is validating a personal "
+            f"AI model as more history arrives; the safer {active_model.replace('_', ' ')} remains active."
         )
 
     return ForecastResponse(
@@ -234,7 +281,22 @@ async def get_forecast(
             readiness_percentage=round(readiness, 1),
             active_model=active_model,
             learning_message=learning_message,
+            coverage_status=coverage.status,
+            is_fresh=coverage.is_fresh,
+            training_days_logged=int(model_status.get("days_logged", len(daily_history))),
+            training_required_days=int(model_status.get("minimum_lstm_days", LSTM_HISTORY_DAYS)),
+            validation_mae=model_status.get("validation_mae"),
+            selected_via_backtest=bool(model_status.get("selected_via_backtest", False)),
         ),
         history_used=_cumulative_history(month_daily),
         forecast=future,
+        upcoming_festivals=[
+            FestivalForecastEvent(
+                date=event.date,
+                name=event.name,
+                festival_type=event.festival_type,
+                is_major=event.is_major,
+            )
+            for event in upcoming_festivals
+        ],
     )

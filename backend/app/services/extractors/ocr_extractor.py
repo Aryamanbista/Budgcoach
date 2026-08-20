@@ -14,6 +14,8 @@ from app.services.parser_service import regex_fallback
 logger = logging.getLogger(__name__)
 
 class OCRExtractor(BaseExtractor):
+    MAX_PDF_PAGES = 50
+    MAX_IMAGE_PIXELS = 50_000_000
     def can_handle(self, filename: str) -> bool:
         ext = filename.lower().split('.')[-1]
         return ext in ['pdf', 'png', 'jpg', 'jpeg']
@@ -28,6 +30,13 @@ class OCRExtractor(BaseExtractor):
         else:
             gray = img_np
             
+        height, width = gray.shape[:2]
+        if height * width > self.MAX_IMAGE_PIXELS:
+            raise ValueError("Image dimensions exceed the safe OCR limit.")
+        if width < 1600:
+            scale = min(2.0, 1600 / max(width, 1))
+            gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+
         # Denoise
         denoised = cv2.fastNlMeansDenoising(gray, None, 30, 7, 21)
         
@@ -36,6 +45,35 @@ class OCRExtractor(BaseExtractor):
         _, thresh = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
         return thresh
+
+    def _extract_image_rows(self, processed_img: np.ndarray, source: str) -> List[TransactionRow]:
+        best_rows: List[TransactionRow] = []
+        best_score = -1.0
+        # PSM 6 suits tabular blocks; PSM 11 recovers sparse wallet screenshots.
+        for page_segmentation_mode in (6, 11):
+            ocr_data = pytesseract.image_to_data(
+                processed_img,
+                output_type=pytesseract.Output.DICT,
+                config=f"--oem 3 --psm {page_segmentation_mode}",
+                timeout=30,
+            )
+            parsed_rows: List[TransactionRow] = []
+            for reconstructed in self._cluster_words_to_rows(ocr_data):
+                raw_text = reconstructed["raw_text"]
+                if len(raw_text.strip()) <= 10:
+                    continue
+                transaction = regex_fallback(raw_text)
+                if transaction:
+                    transaction.source_format = source
+                    transaction.confidence = min(
+                        transaction.confidence,
+                        reconstructed["confidence"],
+                    )
+                    parsed_rows.append(transaction)
+            score = len(parsed_rows) + sum(row.confidence for row in parsed_rows)
+            if score > best_score:
+                best_rows, best_score = parsed_rows, score
+        return best_rows
 
     def _cluster_words_to_rows(self, ocr_data: Dict[str, list]) -> List[Dict[str, Any]]:
         """
@@ -105,6 +143,9 @@ class OCRExtractor(BaseExtractor):
             if ext == 'pdf':
                 # Rasterize PDF to images using PyMuPDF
                 doc = fitz.open(file_path)
+                if len(doc) > self.MAX_PDF_PAGES:
+                    doc.close()
+                    raise ValueError(f"PDF statements are limited to {self.MAX_PDF_PAGES} pages.")
                 for page_num in range(len(doc)):
                     page = doc[page_num]
                     # Zoom factor for better OCR resolution (e.g. 300 DPI)
@@ -129,30 +170,15 @@ class OCRExtractor(BaseExtractor):
                     
             for img_np in images:
                 processed_img = self._preprocess_image(img_np)
-                
-                # Get raw OCR data
-                custom_config = r'--oem 3 --psm 6'  # psm 6 assumes uniform block of text
-                # We use image_to_data to get bounding boxes
-                ocr_data = pytesseract.image_to_data(processed_img, output_type=pytesseract.Output.DICT, config=custom_config)
-                
-                clustered_rows = self._cluster_words_to_rows(ocr_data)
-                
-                for r in clustered_rows:
-                    raw_text = r['raw_text']
-                    conf = r['confidence']
-                    
-                    if len(raw_text.strip()) > 10:
-                        # Fallback to regex since OCR rows lose strict column boundaries 
-                        # across different banks if they aren't perfectly aligned
-                        tx_row = regex_fallback(raw_text)
-                        if tx_row:
-                            # Override source and confidence
-                            tx_row.source_format = "pdf_ocr" if ext == 'pdf' else "image_ocr"
-                            # Combine tesseract confidence with base fallback confidence
-                            tx_row.confidence = min(tx_row.confidence, conf)
-                            rows.append(tx_row)
+                rows.extend(
+                    self._extract_image_rows(
+                        processed_img,
+                        "pdf_ocr" if ext == "pdf" else "image_ocr",
+                    )
+                )
                             
         except Exception as e:
-            logger.error(f"OCRExtractor failed: {e}")
+            logger.exception("OCRExtractor failed: %s", e)
+            raise
             
         return rows

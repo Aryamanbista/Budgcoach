@@ -1,6 +1,7 @@
 import os
 import tempfile
 import logging
+import asyncio
 from typing import List
 
 from app.schemas.transaction import TransactionRow
@@ -28,31 +29,26 @@ async def process_document(file_bytes: bytes, filename: str) -> List[Transaction
         with os.fdopen(temp_fd, 'wb') as f:
             f.write(file_bytes)
             
-        rows = []
-        
         excel_extractor = ExcelExtractor()
         pdf_extractor = PDFTextExtractor()
         ocr_extractor = OCRExtractor()
-        
-        # 1. Try Excel Extraction
-        if excel_extractor.can_handle(filename):
-            rows = excel_extractor.extract(temp_path)
-            
-        # 2. Try PDF Text Extraction
-        elif pdf_extractor.can_handle(filename):
-            rows = pdf_extractor.extract(temp_path)
-            
-            # If PDF text extraction returned nothing, it's likely a scanned PDF
-            if not rows and ocr_extractor.can_handle(filename):
-                logger.info(f"{filename} appears to be a scanned PDF. Falling back to OCR.")
-                rows = ocr_extractor.extract(temp_path)
-                
-        # 3. Try Image OCR Extraction
-        elif ocr_extractor.can_handle(filename):
-            rows = ocr_extractor.extract(temp_path)
-            
-        else:
+
+        def extract_rows() -> List[TransactionRow]:
+            if excel_extractor.can_handle(filename):
+                return excel_extractor.extract(temp_path)
+            if pdf_extractor.can_handle(filename):
+                extracted = pdf_extractor.extract(temp_path)
+                if not extracted and ocr_extractor.can_handle(filename):
+                    logger.info("%s appears scanned; falling back to OCR", filename)
+                    return ocr_extractor.extract(temp_path)
+                return extracted
+            if ocr_extractor.can_handle(filename):
+                return ocr_extractor.extract(temp_path)
             raise ValueError(f"Unsupported file format: {ext}")
+
+        # PDF/OCR/spreadsheet libraries are synchronous and CPU-heavy. Keep them
+        # off the FastAPI event loop so one import cannot stall unrelated users.
+        rows = await asyncio.to_thread(extract_rows)
             
         # Escalation Design (Option B readiness)
         # Check if the extracted rows have broken balances or if nothing was extracted

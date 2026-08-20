@@ -12,6 +12,7 @@ from app.api.accounts import router as accounts_router
 from app.api.categories import router as categories_router
 from app.api.health_score import router as health_score_router
 from app.api.nudges import router as nudges_router
+from app.api.festivals import router as festivals_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -21,7 +22,7 @@ app = FastAPI(
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,6 +40,7 @@ app.include_router(accounts_router, prefix=f"{settings.API_V1_STR}/accounts", ta
 app.include_router(categories_router, prefix=f"{settings.API_V1_STR}/categories", tags=["Categories"])
 app.include_router(health_score_router, prefix=f"{settings.API_V1_STR}/health-score", tags=["Health Score"])
 app.include_router(nudges_router, prefix=f"{settings.API_V1_STR}/nudges", tags=["Nudges"])
+app.include_router(festivals_router, prefix=f"{settings.API_V1_STR}/festivals", tags=["Festivals"])
 
 # Health check route
 @app.get("/health", tags=["Health"])

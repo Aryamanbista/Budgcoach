@@ -4,7 +4,7 @@ from typing import List
 
 from app.services.extractors.base import BaseExtractor
 from app.schemas.transaction import TransactionRow
-from app.services.parser_service import normalize_headers, regex_fallback
+from app.services.parser_service import normalize_headers, parse_money, regex_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -52,38 +52,33 @@ class PDFTextExtractor(BaseExtractor):
         if not table:
             return rows
             
-        # Assume first non-empty row contains headers
-        raw_headers = [str(col).strip() if col else "" for col in table[0]]
-        header_map = normalize_headers(raw_headers)
-        
+        header_index = 0
+        raw_headers = []
+        header_map = {}
+        for index, candidate in enumerate(table[:10]):
+            candidate_headers = [str(col).strip() if col else "" for col in candidate]
+            candidate_map = normalize_headers(candidate_headers)
+            if "date" in candidate_map and (
+                ("debit" in candidate_map and "credit" in candidate_map)
+                or "amount" in candidate_map
+            ):
+                header_index = index
+                raw_headers = candidate_headers
+                header_map = candidate_map
+                break
         if not header_map:
-            # Maybe headers are on the second row
-            if len(table) > 1:
-                raw_headers = [str(col).strip() if col else "" for col in table[1]]
-                header_map = normalize_headers(raw_headers)
-                table = table[1:] # Skip first row
-                
-        def parse_float(val):
-            if not val:
-                return None
-            try:
-                cleaned = val.replace(',', '').replace('Rs.', '').replace('NPR', '').strip()
-                if not cleaned:
-                    return None
-                return float(cleaned)
-            except ValueError:
-                return None
+            return rows
 
         last_tx = None
-        for row in table[1:]:
+        for row in table[header_index + 1:]:
             row_dict = {raw_headers[i]: (row[i] if i < len(row) else "") for i in range(len(raw_headers))}
             
             date_val = str(row_dict.get(header_map.get('date'), '')) if 'date' in header_map else None
             desc_val = str(row_dict.get(header_map.get('description'), '')) if 'description' in header_map else None
             
-            debit_val = parse_float(row_dict.get(header_map.get('debit'))) if 'debit' in header_map else None
-            credit_val = parse_float(row_dict.get(header_map.get('credit'))) if 'credit' in header_map else None
-            balance_val = parse_float(row_dict.get(header_map.get('balance'))) if 'balance' in header_map else None
+            debit_val = parse_money(row_dict.get(header_map.get('debit'))) if 'debit' in header_map else None
+            credit_val = parse_money(row_dict.get(header_map.get('credit'))) if 'credit' in header_map else None
+            balance_val = parse_money(row_dict.get(header_map.get('balance'))) if 'balance' in header_map else None
             
             if not date_val and debit_val is None and credit_val is None:
                 # This is likely a continuation of the description from the previous row
