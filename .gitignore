@@ -7,11 +7,9 @@ node_modules/
 apps/web-admin/.next/
 apps/web-admin/out/
 
-# Expo / React Native
+# Flutter mobile build output
 apps/mobile-app/.expo/
 apps/mobile-app/dist/
-apps/mobile-app/android/
-apps/mobile-app/ios/
 *.jsbundle
 
 # Python
@@ -32,6 +30,8 @@ services/ml-engine/.env
 *.onnx
 services/ml-engine/models/*.pkl
 services/ml-engine/models/*.h5
+!services/ml-engine/models/category_classifier.pkl
+!services/ml-engine/models/scaler.pkl
 
 # Environment files (never commit secrets)
 .env
