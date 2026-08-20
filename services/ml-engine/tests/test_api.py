@@ -31,10 +31,11 @@ class MlEngineContractTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(body["category"], "Food & Dining")
+        self.assertIsInstance(body["category"], str)
+        self.assertTrue(body["category"])
         self.assertGreaterEqual(body["confidence"], 0)
         self.assertLessEqual(body["confidence"], 1)
-        self.assertTrue(body["is_mock"])
+        self.assertIsInstance(body["is_mock"], bool)
 
     def test_forecast_contract(self):
         response = self.client.post(
@@ -51,7 +52,9 @@ class MlEngineContractTests(unittest.TestCase):
         self.assertGreater(body["predicted_spend"], 0)
         self.assertIsInstance(body["budget_breach_warning"], bool)
         self.assertGreaterEqual(body["days_until_breach"], 0)
-        self.assertTrue(body["is_mock"])
+        self.assertFalse(body["is_mock"])
+        self.assertEqual(body["ai_status"]["required_days"], 30)
+        self.assertEqual(body["ai_status"]["active_model"], "personal_baseline")
 
     def test_forecast_rejects_malformed_amount(self):
         response = self.client.post(

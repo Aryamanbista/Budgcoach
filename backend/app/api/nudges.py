@@ -1,78 +1,79 @@
-from fastapi import APIRouter, Depends
+from datetime import datetime, timedelta, timezone
+from typing import List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-import datetime
+
 from app.api.auth import get_current_user
 from app.core.database import get_db
+from app.models.nudge import Nudge
 from app.models.user import User
-from app.models.transaction import Transaction
-from app.models.budget import Budget
-from app.models.savings_goal import SavingsGoal
+from app.schemas.nudge import NudgeOut
+from app.services.nudge_service import build_personalized_nudges, persist_candidates
 
 router = APIRouter()
 
-@router.get("/")
+
+@router.get("/", response_model=List[NudgeOut])
 async def get_nudges(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Returns algorithmic nudges based on recent activity.
-    """
-    nudges = []
-    
-    # 1. Budget Overspend Nudge
-    stmt_budget = select(Budget).where(Budget.user_id == current_user.id)
-    budgets = (await db.execute(stmt_budget)).scalars().all()
-    
-    for b in budgets:
-        if b.amount > 0 and b.spent >= b.amount:
-            nudges.append({
-                "type": "warning",
-                "title": f"Budget Exceeded",
-                "message": f"You've exceeded your budget for {b.category.name if b.category else 'a category'}."
-            })
-        elif b.amount > 0 and b.spent >= b.amount * 0.8:
-            nudges.append({
-                "type": "alert",
-                "title": f"Approaching Budget Limit",
-                "message": f"You've spent 80% of your budget for {b.category.name if b.category else 'a category'}."
-            })
-            
-    # 2. Positive Reinforcement (Savings Goal)
-    stmt_goal = select(SavingsGoal).where(SavingsGoal.user_id == current_user.id)
-    goals = (await db.execute(stmt_goal)).scalars().all()
-    
-    for g in goals:
-        if g.current_amount >= g.target_amount:
-            nudges.append({
-                "type": "success",
-                "title": "Goal Achieved!",
-                "message": f"Congratulations! You reached your goal: {g.name}."
-            })
-            
-    # 3. Weekly Spike Nudge
-    seven_days_ago = datetime.datetime.now() - datetime.timedelta(days=7)
-    stmt_tx = select(func.sum(Transaction.amount)).where(
-        Transaction.user_id == current_user.id,
-        Transaction.type == "debit",
-        Transaction.transaction_date >= seven_days_ago
+    """Generate and return user-specific active nudges and 30-day history."""
+    candidates = await build_personalized_nudges(db, user_id=current_user.id)
+    current_rows = await persist_candidates(
+        db,
+        user_id=current_user.id,
+        candidates=candidates,
     )
-    weekly_spend = (await db.execute(stmt_tx)).scalar() or 0
-    
-    if weekly_spend > 20000: # Arbitrary high spend threshold
-        nudges.append({
-            "type": "info",
-            "title": "High Weekly Spend",
-            "message": f"You've spent {weekly_spend} this week. Consider reviewing your transactions."
-        })
-        
-    # Default nudge if none triggered
-    if not nudges:
-        nudges.append({
-            "type": "info",
-            "title": "On Track",
-            "message": "Your finances look stable. Keep up the good work!"
-        })
-        
-    return nudges
+
+    current_ids = {row.id for row in current_rows}
+    history_since = datetime.now(timezone.utc) - timedelta(days=30)
+    history_result = await db.execute(
+        select(Nudge).where(
+            Nudge.user_id == current_user.id,
+            Nudge.dismissed_at.is_not(None),
+            Nudge.dismissed_at >= history_since,
+        )
+    )
+    historical_rows = [
+        row for row in history_result.scalars().all() if row.id not in current_ids
+    ]
+
+    return sorted(
+        [*current_rows, *historical_rows],
+        key=lambda row: (
+            row.dismissed_at is None,
+            row.priority,
+            row.generated_at,
+        ),
+        reverse=True,
+    )
+
+
+@router.patch("/{nudge_id}/dismiss", response_model=NudgeOut)
+async def dismiss_nudge(
+    nudge_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Nudge).where(
+            Nudge.id == nudge_id,
+            Nudge.user_id == current_user.id,
+        )
+    )
+    nudge = result.scalars().first()
+    if nudge is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Nudge not found or access denied.",
+        )
+
+    if nudge.dismissed_at is None:
+        nudge.dismissed_at = datetime.now(timezone.utc)
+        await db.commit()
+
+    return nudge
