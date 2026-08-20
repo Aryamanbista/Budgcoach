@@ -1,9 +1,13 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/error_state_widget.dart';
+import '../../../shared/widgets/shimmer_loader.dart';
 import '../providers/forecast_provider.dart';
 
 class ForecastScreen extends ConsumerWidget {
@@ -13,504 +17,509 @@ class ForecastScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final forecastAsync = ref.watch(forecastProvider);
 
-    return forecastAsync.when(
-      data: (forecast) {
-        // Prepare LineChart data points
-        final actualPoints = forecast.actualPoints.entries
-            .map((e) => FlSpot(e.key.toDouble() + 1, e.value))
-            .toList();
-
-        final predictedPoints = forecast.predictedPoints.entries
-            .map((e) => FlSpot(e.key.toDouble() + 1, e.value))
-            .toList();
-
-        // Mock AI Status from Backend
-        final double readinessPercentage =
-            45.0; // Mock: 45% complete (< 30 days data)
-        final String activeModel =
-            'rule_based'; // 'rule_based', 'arima_baseline', or 'lstm_network'
-
-        final String subtitleLabel = activeModel == 'lstm_network'
-            ? '(Powered by Budgcoach AI)'
-            : '(Rule-Based Estimate)';
-
-        final bool isCalibrating = readinessPercentage < 100.0;
-
-        return Scaffold(
-          appBar: AppBar(title: const Text('Spending Forecast'), elevation: 0),
-          body: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Summary card
-                  Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Projected End-of-Month Spend',
-                            style: AppTextStyles.labelSmall.copyWith(
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'NPR 27,800',
-                            style: AppTextStyles.displayLarge.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'vs Last Month: NPR 24,300 (↑ 14.5%)',
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[200],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.info_outline,
-                                  size: 16,
-                                  color: AppColors.textSecondary,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'No festival in June 2026',
-                                  style: AppTextStyles.labelSmall.copyWith(
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Chart Header
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'June Spending Projection',
-                        style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitleLabel,
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: activeModel == 'lstm_network'
-                              ? AppColors.primary
-                              : AppColors.secondary,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Line Chart Container
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.only(
-                            right: 20.0,
-                            left: 10.0,
-                            top: 20.0,
-                            bottom: 10.0,
-                          ),
-                          child: SizedBox(
-                            height: 220,
-                            child: LineChart(
-                              LineChartData(
-                                gridData: FlGridData(
-                                  show: true,
-                                  drawVerticalLine: true,
-                                  getDrawingHorizontalLine: (value) => FlLine(
-                                    color: Colors.grey[250]!,
-                                    strokeWidth: 1,
-                                  ),
-                                  getDrawingVerticalLine: (value) => FlLine(
-                                    color: Colors.grey[250]!,
-                                    strokeWidth: 1,
-                                  ),
-                                ),
-                                titlesData: FlTitlesData(
-                                  show: true,
-                                  rightTitles: const AxisTitles(
-                                    sideTitles: SideTitles(showTitles: false),
-                                  ),
-                                  topTitles: const AxisTitles(
-                                    sideTitles: SideTitles(showTitles: false),
-                                  ),
-                                  bottomTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                      showTitles: true,
-                                      reservedSize: 22,
-                                      interval: 5,
-                                      getTitlesWidget: (value, meta) {
-                                        return Text(
-                                          'D${value.toInt()}',
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  leftTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                      showTitles: true,
-                                      interval: 10000,
-                                      reservedSize: 45,
-                                      getTitlesWidget: (value, meta) {
-                                        return Text(
-                                          '${(value / 1000).toInt()}k',
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                                borderData: FlBorderData(
-                                  show: true,
-                                  border: Border.all(
-                                    color: Colors.grey[300]!,
-                                    width: 1,
-                                  ),
-                                ),
-                                minX: 1,
-                                maxX: 30,
-                                minY: 0,
-                                maxY: 30000,
-                                lineBarsData: [
-                                  // Actual Days 1-15 (Solid blue/green line)
-                                  LineChartBarData(
-                                    spots: actualPoints,
-                                    isCurved: true,
-                                    color: AppColors.primary,
-                                    barWidth: 3.5,
-                                    isStrokeCapRound: true,
-                                    dotData: const FlDotData(show: false),
-                                    belowBarData: BarAreaData(
-                                      show: true,
-                                      color: AppColors.primary.withOpacity(
-                                        0.08,
-                                      ),
-                                    ),
-                                  ),
-                                  // Predicted Days 15-30 (Dashed orange line)
-                                  LineChartBarData(
-                                    spots: predictedPoints,
-                                    isCurved: true,
-                                    color: AppColors.secondary,
-                                    barWidth: 3.5,
-                                    dashArray: [6, 4],
-                                    isStrokeCapRound: true,
-                                    dotData: const FlDotData(show: false),
-                                    belowBarData: BarAreaData(
-                                      show: true,
-                                      color: AppColors.secondary.withOpacity(
-                                        0.04,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (isCalibrating)
-                        Container(
-                          height: 250,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.85),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 80,
-                                  height: 80,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      CircularProgressIndicator(
-                                        value: readinessPercentage / 100.0,
-                                        strokeWidth: 8,
-                                        backgroundColor: Colors.grey[300],
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              AppColors.secondary,
-                                            ),
-                                      ),
-                                      Center(
-                                        child: Text(
-                                          '${readinessPercentage.toInt()}%',
-                                          style: AppTextStyles.titleLarge
-                                              .copyWith(
-                                                color: AppColors.primary,
-                                              ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Calibrating AI...',
-                                  style: AppTextStyles.titleLarge.copyWith(
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Need more days of data to unlock LSTM.',
-                                  style: AppTextStyles.bodyMedium,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Legend
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildLegendItem(
-                        color: AppColors.primary,
-                        label: 'Actual Spent (Days 1–15)',
-                      ),
-                      const SizedBox(width: 24),
-                      _buildLegendItem(
-                        color: AppColors.secondary,
-                        label: 'Forecast (Days 16–30)',
-                        isDashed: true,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Category breakdown forecast
-                  Text(
-                    'Category Breakdown Forecast',
-                    style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Category Forecast bars
-                  _buildCategoryForecastBar(
-                    categoryName: '🛍️ Shopping',
-                    actual: 4300,
-                    predicted: 5500,
-                    limit: 4000,
-                    alertText: 'Shopping is projected to exceed budget!',
-                    isExceeded: true,
-                  ),
-                  _buildCategoryForecastBar(
-                    categoryName: '🍜 Food & Dining',
-                    actual: 5200,
-                    predicted: 7200,
-                    limit: 8000,
-                  ),
-                  _buildCategoryForecastBar(
-                    categoryName: '🚌 Transport',
-                    actual: 2100,
-                    predicted: 2800,
-                    limit: 3000,
-                  ),
-                  _buildCategoryForecastBar(
-                    categoryName: '💡 Utilities',
-                    actual: 1200,
-                    predicted: 1900,
-                    limit: 2000,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (err, stack) => Scaffold(body: Center(child: Text('Error: $err'))),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Spending Forecast'), elevation: 0),
+      body: forecastAsync.when(
+        data: (forecast) => RefreshIndicator(
+          onRefresh: () => ref.read(forecastProvider.notifier).fetchForecast(),
+          child: _ForecastContent(forecast: forecast),
+        ),
+        loading: () => const _ForecastLoadingState(),
+        error: (error, _) => ErrorStateWidget(
+          message:
+              'We could not load your forecast. Check your connection and try again.',
+          onRetry: () => ref.read(forecastProvider.notifier).fetchForecast(),
+        ),
+      ),
     );
   }
+}
 
-  Widget _buildLegendItem({
-    required Color color,
-    required String label,
-    bool isDashed = false,
-  }) {
-    return Row(
+class _ForecastContent extends StatelessWidget {
+  final ForecastData forecast;
+
+  const _ForecastContent({required this.forecast});
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final monthLabel = DateFormat('MMMM yyyy').format(now);
+    final hasChartData =
+        forecast.actualPoints.isNotEmpty || forecast.predictedPoints.isNotEmpty;
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
       children: [
-        Container(
-          width: 18,
-          height: 4,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
+        _SummaryCard(forecast: forecast),
+        const SizedBox(height: 16),
+        _LearningCard(status: forecast.aiStatus),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '$monthLabel projection',
+              style: AppTextStyles.titleLarge.copyWith(fontSize: 17),
+            ),
+            _ModelBadge(label: forecast.aiStatus.modelLabel),
+          ],
         ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+        const SizedBox(height: 12),
+        if (hasChartData)
+          _ForecastChart(forecast: forecast)
+        else
+          const _EmptyForecastCard(),
+        const SizedBox(height: 12),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _Legend(color: AppColors.primary, label: 'Actual spend'),
+            SizedBox(width: 24),
+            _Legend(
+              color: AppColors.secondary,
+              label: 'Projected spend',
+              dashed: true,
+            ),
+          ],
         ),
+        const SizedBox(height: 24),
+        _BudgetOutlookCard(forecast: forecast),
       ],
     );
   }
+}
 
-  Widget _buildCategoryForecastBar({
-    required String categoryName,
-    required double actual,
-    required double predicted,
-    required double limit,
-    String? alertText,
-    bool isExceeded = false,
-  }) {
-    final double maxVal = predicted > limit ? predicted : limit;
-    final double actualRatio = actual / maxVal;
-    final double predictedRatio = predicted / maxVal;
-    final double limitRatio = limit / maxVal;
+class _SummaryCard extends StatelessWidget {
+  final ForecastData forecast;
+
+  const _SummaryCard({required this.forecast});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBudget = forecast.totalBudget > 0;
+    final message = forecast.budgetBreachWarning
+        ? forecast.daysUntilBreach > 0
+              ? 'At this pace, your budget may be reached in ${forecast.daysUntilBreach} days.'
+              : 'This projection is above your monthly budget.'
+        : hasBudget
+        ? '${Formatters.formatNpr(forecast.remainingBudget)} remains in this month\'s budget.'
+        : 'Set category budgets to enable breach alerts.';
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  categoryName,
-                  style: AppTextStyles.bodyLarge.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Proj: ${Formatters.formatNpr(predicted)}',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: isExceeded ? AppColors.danger : AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Bar representation (Actual - solid, Forecast - lighter, Limit - dotted marker)
-            Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                // Base Background
-                Container(
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-
-                // Forecast (predicted) bar
-                FractionallySizedBox(
-                  widthFactor: predictedRatio.clamp(0.0, 1.0),
-                  child: Container(
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: isExceeded
-                          ? AppColors.danger.withOpacity(0.3)
-                          : AppColors.primary.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-
-                // Actual bar
-                FractionallySizedBox(
-                  widthFactor: actualRatio.clamp(0.0, 1.0),
-                  child: Container(
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: isExceeded ? AppColors.danger : AppColors.primary,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-
-                // Limit marker
-                Positioned(
-                  left: (limitRatio * 200), // Visual rough mapping
-                  child: Container(width: 3, height: 16, color: Colors.black),
-                ),
-              ],
+            Text(
+              'Projected end-of-month spend',
+              style: AppTextStyles.labelSmall.copyWith(fontSize: 13),
             ),
             const SizedBox(height: 8),
+            Text(
+              Formatters.formatNpr(forecast.predictedSpend),
+              style: AppTextStyles.displayLarge.copyWith(
+                color: forecast.budgetBreachWarning
+                    ? AppColors.danger
+                    : AppColors.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Spent so far: ${Formatters.formatNpr(forecast.currentMonthSpend)}',
+              style: AppTextStyles.bodyMedium,
+            ),
+            const SizedBox(height: 6),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Limit: ${Formatters.formatNpr(limit)}',
-                  style: AppTextStyles.labelSmall,
+                Icon(
+                  forecast.budgetBreachWarning
+                      ? Icons.warning_amber_rounded
+                      : Icons.insights_outlined,
+                  size: 18,
+                  color: forecast.budgetBreachWarning
+                      ? AppColors.danger
+                      : AppColors.textSecondary,
                 ),
-                Text(
-                  'Actual: ${Formatters.formatNpr(actual)}',
-                  style: AppTextStyles.labelSmall,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: forecast.budgetBreachWarning
+                          ? AppColors.danger
+                          : AppColors.textSecondary,
+                    ),
+                  ),
                 ),
               ],
             ),
-            if (isExceeded && alertText != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.warning, color: AppColors.danger, size: 14),
-                  const SizedBox(width: 6),
-                  Text(
-                    alertText,
-                    style: AppTextStyles.labelSmall.copyWith(
-                      color: AppColors.danger,
-                      fontWeight: FontWeight.bold,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LearningCard extends StatelessWidget {
+  final ForecastAiStatus status;
+
+  const _LearningCard({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = (status.readinessPercentage / 100).clamp(0.0, 1.0);
+    final isLearning = status.isLearning;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.10),
+            AppColors.secondary.withValues(alpha: 0.08),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isLearning ? Icons.psychology_outlined : Icons.auto_awesome,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isLearning
+                          ? 'Budgcoach is learning about you'
+                          : 'Your personal forecast is ready',
+                      style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${status.daysLogged} of ${status.requiredDays} days available',
+                      style: AppTextStyles.labelSmall,
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '${status.readinessPercentage.round()}%',
+                style: AppTextStyles.titleLarge.copyWith(
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: Colors.white.withValues(alpha: 0.7),
+              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            status.learningMessage,
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForecastChart extends StatelessWidget {
+  final ForecastData forecast;
+
+  const _ForecastChart({required this.forecast});
+
+  @override
+  Widget build(BuildContext context) {
+    final actual = forecast.actualPoints.entries
+        .map((entry) => FlSpot(entry.key.toDouble(), entry.value))
+        .toList();
+    final predicted = forecast.predictedPoints.entries
+        .map((entry) => FlSpot(entry.key.toDouble(), entry.value))
+        .toList();
+    final values = [...actual, ...predicted].map((point) => point.y);
+    final highest = values.fold<double>(
+      0,
+      (max, value) => value > max ? value : max,
+    );
+    final maxY = highest <= 0 ? 1000.0 : highest * 1.18;
+    final daysInMonth = DateUtils.getDaysInMonth(
+      DateTime.now().year,
+      DateTime.now().month,
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 24, 20, 12),
+        child: SizedBox(
+          height: 240,
+          child: LineChart(
+            LineChartData(
+              minX: 1,
+              maxX: daysInMonth.toDouble(),
+              minY: 0,
+              maxY: maxY,
+              gridData: FlGridData(
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (_) => FlLine(
+                  color: Colors.grey.withValues(alpha: 0.14),
+                  strokeWidth: 1,
+                ),
+              ),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    interval: 5,
+                    reservedSize: 24,
+                    getTitlesWidget: (value, _) => Text(
+                      '${value.toInt()}',
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
                     ),
                   ),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 48,
+                    interval: maxY / 4,
+                    getTitlesWidget: (value, _) => Text(
+                      value >= 1000
+                          ? '${(value / 1000).toStringAsFixed(value >= 10000 ? 0 : 1)}k'
+                          : value.toStringAsFixed(0),
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ),
+                ),
+              ),
+              lineBarsData: [
+                if (actual.isNotEmpty)
+                  LineChartBarData(
+                    spots: actual,
+                    isCurved: true,
+                    color: AppColors.primary,
+                    barWidth: 3,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                    ),
+                  ),
+                if (predicted.isNotEmpty)
+                  LineChartBarData(
+                    spots: predicted,
+                    isCurved: true,
+                    color: AppColors.secondary,
+                    barWidth: 3,
+                    dashArray: [7, 5],
+                    dotData: const FlDotData(show: false),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BudgetOutlookCard extends StatelessWidget {
+  final ForecastData forecast;
+
+  const _BudgetOutlookCard({required this.forecast});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBudget = forecast.totalBudget > 0;
+    final ratio = hasBudget
+        ? (forecast.predictedSpend / forecast.totalBudget).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Budget outlook',
+              style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            if (!hasBudget)
+              Text(
+                'No budget is set for this month. Your spending forecast will still update as transactions arrive.',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              )
+            else ...[
+              LinearProgressIndicator(
+                value: ratio,
+                minHeight: 10,
+                borderRadius: BorderRadius.circular(8),
+                backgroundColor: Colors.grey[200],
+                valueColor: AlwaysStoppedAnimation(
+                  forecast.budgetBreachWarning
+                      ? AppColors.danger
+                      : AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Projected ${Formatters.formatNpr(forecast.predictedSpend)}',
+                  ),
+                  Text('Budget ${Formatters.formatNpr(forecast.totalBudget)}'),
                 ],
               ),
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ModelBadge extends StatelessWidget {
+  final String label;
+
+  const _ModelBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.labelSmall.copyWith(color: AppColors.primary),
+      ),
+    );
+  }
+}
+
+class _Legend extends StatelessWidget {
+  final Color color;
+  final String label;
+  final bool dashed;
+
+  const _Legend({
+    required this.color,
+    required this.label,
+    this.dashed = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 20,
+          height: dashed ? 3 : 4,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 7),
+        Text(label, style: AppTextStyles.labelSmall),
+      ],
+    );
+  }
+}
+
+class _EmptyForecastCard extends StatelessWidget {
+  const _EmptyForecastCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.upload_file_outlined,
+              size: 44,
+              color: AppColors.primary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Add your transaction history',
+              style: AppTextStyles.titleLarge.copyWith(fontSize: 16),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Upload your latest statement to create your first personal spending baseline.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ForecastLoadingState extends StatelessWidget {
+  const _ForecastLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: const [
+        ShimmerLoader(width: double.infinity, height: 170),
+        SizedBox(height: 16),
+        ShimmerLoader(width: double.infinity, height: 150),
+        SizedBox(height: 24),
+        ShimmerLoader(width: double.infinity, height: 260),
+      ],
     );
   }
 }

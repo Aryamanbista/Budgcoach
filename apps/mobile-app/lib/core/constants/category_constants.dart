@@ -107,10 +107,17 @@ extension TransactionCategoryExtension on TransactionCategory {
 
 class CategoryConstants {
   static TransactionCategory fromString(String category) {
+    String normalize(String value) => value
+        .toLowerCase()
+        .replaceAll('&', 'and')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .trim();
+
+    final normalizedCategory = normalize(category);
     return TransactionCategory.values.firstWhere(
       (e) =>
-          e.name.toLowerCase() == category.toLowerCase() ||
-          e.displayName.toLowerCase() == category.toLowerCase(),
+          normalize(e.name) == normalizedCategory ||
+          normalize(e.displayName) == normalizedCategory,
       orElse: () => TransactionCategory.other,
     );
   }

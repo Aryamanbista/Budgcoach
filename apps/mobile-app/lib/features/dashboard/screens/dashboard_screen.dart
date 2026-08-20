@@ -4,13 +4,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/category_constants.dart';
-import '../../../shared/models/transaction_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../transactions/providers/transactions_provider.dart';
 import '../../transactions/screens/add_transaction_sheet.dart';
 import '../../transactions/widgets/transaction_list_item.dart';
 import '../../budget/providers/budget_provider.dart';
-import '../../nudges/providers/nudges_provider.dart';
 import '../../nudges/providers/nudges_provider.dart';
 import '../../../shared/models/nudge_model.dart';
 import '../../health_score/providers/health_score_provider.dart';
@@ -27,7 +25,8 @@ class DashboardScreen extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final transactions = ref.watch(transactionsProvider);
     final budgets = ref.watch(budgetsProvider);
-    final nudges = ref.watch(nudgesProvider);
+    final nudges =
+        ref.watch(nudgesProvider).valueOrNull ?? const <NudgeModel>[];
     final healthScoreAsync = ref.watch(healthScoreProvider);
     final currentScore =
         healthScoreAsync.valueOrNull?.score ?? 75; // Default while loading
@@ -50,14 +49,17 @@ class DashboardScreen extends ConsumerWidget {
         )
         .fold(0.0, (sum, tx) => sum + tx.amount.abs());
 
-    // Find the first active WARNING nudge
+    // The API orders nudges by priority, so surface the most urgent warning.
     final activeWarningNudge = nudges.firstWhere(
-      (n) => n.severity == NudgeSeverity.warning && !n.isDismissed,
+      (n) =>
+          (n.severity == NudgeSeverity.critical ||
+              n.severity == NudgeSeverity.warning) &&
+          !n.isDismissed,
       orElse: () => NudgeModel(
         id: '',
         title: '',
         description: '',
-        severity: NudgeSeverity.warning,
+        severity: NudgeSeverity.info,
         date: DateTime.now(),
       ),
     );
@@ -102,7 +104,7 @@ class DashboardScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(right: 16.0),
             key: const Key('dashboard_avatar'),
             child: CircleAvatar(
-              backgroundColor: AppColors.primary.withOpacity(0.2),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.2),
               child: Text(
                 'AB',
                 style: AppTextStyles.bodyLarge.copyWith(
@@ -335,9 +337,11 @@ class DashboardScreen extends ConsumerWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.08),
+                color: AppColors.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                ),
               ),
               child: Icon(icon, color: AppColors.primary, size: 28),
             ),

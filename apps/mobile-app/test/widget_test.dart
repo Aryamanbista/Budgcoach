@@ -1,4 +1,5 @@
 import 'package:budgcoach/features/auth/screens/login_screen.dart';
+import 'package:budgcoach/features/forecast/providers/forecast_provider.dart';
 import 'package:budgcoach/features/upload/screens/upload_screen.dart';
 import 'package:budgcoach/features/upload/screens/review_transactions_screen.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,38 @@ import 'package:google_fonts/google_fonts.dart';
 
 void main() {
   GoogleFonts.config.allowRuntimeFetching = false;
+
+  test('forecast API response maps summary, chart, and learning state', () {
+    final forecast = ForecastData.fromJson({
+      'predicted_spend': 18500,
+      'current_month_spend': 10000,
+      'total_budget': 20000,
+      'remaining_budget': 10000,
+      'budget_breach_warning': false,
+      'days_until_breach': 0,
+      'ai_status': {
+        'days_logged': 12,
+        'required_days': 30,
+        'readiness_percentage': 40,
+        'active_model': 'personal_baseline',
+        'learning_message': 'Budgcoach is learning your spending rhythm.',
+      },
+      'history_used': [
+        {'date': '2026-08-19', 'amount': 9000},
+        {'date': '2026-08-20', 'amount': 10000},
+      ],
+      'forecast': [
+        {'date': '2026-08-21', 'amount': 10850},
+      ],
+    });
+
+    expect(forecast.predictedSpend, 18500);
+    expect(forecast.actualPoints[20], 10000);
+    expect(forecast.predictedPoints[20], 10000);
+    expect(forecast.predictedPoints[21], 10850);
+    expect(forecast.aiStatus.isLearning, isTrue);
+    expect(forecast.aiStatus.modelLabel, 'Personal baseline');
+  });
 
   testWidgets(
     'authentication screen switches between sign in and registration',
