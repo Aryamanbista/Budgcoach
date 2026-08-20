@@ -20,3 +20,4 @@ class User(Base):
     transactions = relationship("Transaction", lazy="selectin", back_populates="user", cascade="all, delete-orphan")
     budgets = relationship("Budget", lazy="selectin", back_populates="user", cascade="all, delete-orphan")
     savings_goals = relationship("SavingsGoal", lazy="selectin", back_populates="user", cascade="all, delete-orphan")
+    nudges = relationship("Nudge", lazy="selectin", back_populates="user", cascade="all, delete-orphan")

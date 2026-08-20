@@ -5,5 +5,6 @@ tensorflow==2.16.1
 pytesseract==0.3.10
 pandas==2.2.2
 numpy==1.26.4
+statsmodels==0.14.4
 pydantic==2.7.1
 python-multipart==0.0.22

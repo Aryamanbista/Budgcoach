@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -190,6 +190,91 @@ class BackendApiIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+    def test_forecast_returns_personal_baseline_and_learning_status(self):
+        token = self.register_and_login()
+        account_id, category_id = self.seed_account_and_category()
+        headers = self.auth_headers(token)
+
+        created = self.client.post(
+            "/api/v1/transactions/",
+            headers=headers,
+            json={
+                "account_id": account_id,
+                "category_id": category_id,
+                "amount": "1250.00",
+                "type": "debit",
+                "date": date.today().isoformat(),
+                "transaction_text": "Lunch and groceries",
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+
+        response = self.client.get("/api/v1/forecast/", headers=headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+
+        self.assertFalse(body["is_mock"])
+        self.assertEqual(body["current_month_spend"], 1250.0)
+        self.assertGreaterEqual(body["predicted_spend"], 1250.0)
+        self.assertEqual(body["ai_status"]["days_logged"], 1)
+        self.assertEqual(body["ai_status"]["required_days"], 30)
+        self.assertEqual(body["ai_status"]["active_model"], "personal_baseline")
+        self.assertIn("learning", body["ai_status"]["learning_message"].lower())
+        self.assertEqual(body["history_used"][-1]["amount"], 1250.0)
+
+    def test_empty_forecast_is_a_valid_cold_start_response(self):
+        token = self.register_and_login()
+        response = self.client.get(
+            "/api/v1/forecast/",
+            headers=self.auth_headers(token),
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+
+        self.assertEqual(body["predicted_spend"], 0.0)
+        self.assertEqual(body["ai_status"]["readiness_percentage"], 0.0)
+        self.assertEqual(body["history_used"], [])
+        self.assertEqual(body["forecast"], [])
+
+    @patch("app.api.forecast._ml_projection", new_callable=AsyncMock)
+    def test_forecast_activates_personal_ai_after_thirty_days(
+        self,
+        mock_ml_projection,
+    ):
+        token = self.register_and_login()
+        account_id, category_id = self.seed_account_and_category()
+        mock_ml_projection.return_value = (6000.0, "lstm_network")
+
+        db = SyncTestingSessionLocal()
+        try:
+            user = db.query(User).filter(User.email == "aryaman@example.com").one()
+            for offset in range(30):
+                db.add(
+                    Transaction(
+                        user_id=user.id,
+                        account_id=UUID(account_id),
+                        category_id=UUID(category_id),
+                        amount=Decimal("100.00"),
+                        type="debit",
+                        date=date.today() - timedelta(days=offset),
+                    )
+                )
+            db.commit()
+        finally:
+            db.close()
+
+        response = self.client.get(
+            "/api/v1/forecast/",
+            headers=self.auth_headers(token),
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+
+        self.assertEqual(body["ai_status"]["readiness_percentage"], 100.0)
+        self.assertEqual(body["ai_status"]["active_model"], "lstm_network")
+        self.assertEqual(body["predicted_spend"], 6000.0)
+        mock_ml_projection.assert_awaited_once()
+
     def test_budget_create_duplicate_update_and_filter_flow(self):
         token = self.register_and_login()
         _, category_id = self.seed_account_and_category()
@@ -250,6 +335,131 @@ class BackendApiIntegrationTests(unittest.TestCase):
         listed = self.client.get("/api/v1/goals/", headers=headers)
         self.assertEqual(listed.status_code, 200)
         self.assertEqual(len(listed.json()), 1)
+
+    def test_personalized_budget_nudge_uses_actual_spend_and_persists_dismissal(self):
+        token = self.register_and_login()
+        account_id, category_id = self.seed_account_and_category()
+        headers = self.auth_headers(token)
+        month_key = date.today().strftime("%Y-%m")
+
+        budget = self.client.post(
+            "/api/v1/budgets/",
+            headers=headers,
+            json={
+                "category_id": category_id,
+                "limit_amount": "1000.00",
+                "spent_amount": "0.00",
+                "month_year": month_key,
+            },
+        )
+        self.assertEqual(budget.status_code, 201, budget.text)
+
+        transaction = self.client.post(
+            "/api/v1/transactions/",
+            headers=headers,
+            json={
+                "account_id": account_id,
+                "category_id": category_id,
+                "amount": "1200.00",
+                "type": "debit",
+                "date": date.today().isoformat(),
+                "transaction_text": "Personalized nudge test purchase",
+            },
+        )
+        self.assertEqual(transaction.status_code, 201, transaction.text)
+
+        response = self.client.get("/api/v1/nudges/", headers=headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        budget_nudge = next(
+            nudge
+            for nudge in response.json()
+            if nudge["title"] == "Food and Dining budget exceeded"
+        )
+
+        self.assertEqual(budget_nudge["type"], "critical")
+        self.assertEqual(budget_nudge["metric_data"]["spent"], 1200.0)
+        self.assertEqual(budget_nudge["metric_data"]["limit"], 1000.0)
+        self.assertFalse(budget_nudge["is_dismissed"])
+
+        dismissed = self.client.patch(
+            f"/api/v1/nudges/{budget_nudge['id']}/dismiss",
+            headers=headers,
+        )
+        self.assertEqual(dismissed.status_code, 200, dismissed.text)
+        self.assertTrue(dismissed.json()["is_dismissed"])
+
+        refreshed = self.client.get("/api/v1/nudges/", headers=headers)
+        persisted = next(
+            nudge
+            for nudge in refreshed.json()
+            if nudge["id"] == budget_nudge["id"]
+        )
+        self.assertTrue(persisted["is_dismissed"])
+
+    def test_nudge_dismissal_is_scoped_to_its_owner(self):
+        owner_token = self.register_and_login()
+        nudges = self.client.get(
+            "/api/v1/nudges/",
+            headers=self.auth_headers(owner_token),
+        )
+        self.assertEqual(nudges.status_code, 200, nudges.text)
+        nudge_id = nudges.json()[0]["id"]
+
+        other_token = self.register_and_login(email="other@example.com")
+        forbidden = self.client.patch(
+            f"/api/v1/nudges/{nudge_id}/dismiss",
+            headers=self.auth_headers(other_token),
+        )
+        self.assertEqual(forbidden.status_code, 404)
+
+    def test_weekly_spike_nudge_compares_with_users_own_history(self):
+        token = self.register_and_login()
+        account_id, category_id = self.seed_account_and_category()
+
+        db = SyncTestingSessionLocal()
+        try:
+            user = db.query(User).filter(User.email == "aryaman@example.com").one()
+            for days_ago in (7, 14, 21, 28):
+                db.add(
+                    Transaction(
+                        user_id=user.id,
+                        account_id=UUID(account_id),
+                        category_id=UUID(category_id),
+                        amount=Decimal("1000.00"),
+                        type="debit",
+                        date=date.today() - timedelta(days=days_ago),
+                    )
+                )
+            db.add(
+                Transaction(
+                    user_id=user.id,
+                    account_id=UUID(account_id),
+                    category_id=UUID(category_id),
+                    amount=Decimal("2000.00"),
+                    type="debit",
+                    date=date.today(),
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        response = self.client.get(
+            "/api/v1/nudges/",
+            headers=self.auth_headers(token),
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        spike = next(
+            nudge
+            for nudge in response.json()
+            if nudge["title"] == "Spending is higher than your usual week"
+        )
+        self.assertEqual(spike["type"], "warning")
+        self.assertEqual(
+            spike["metric_data"]["historical_weekly_average"],
+            1000.0,
+        )
+        self.assertEqual(spike["metric_data"]["change_percentage"], 100.0)
 
     def test_transaction_batch(self):
         token = self.register_and_login()

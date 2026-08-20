@@ -1,5 +1,6 @@
 import 'package:budgcoach/core/constants/category_constants.dart';
 import 'package:budgcoach/shared/models/budget_model.dart';
+import 'package:budgcoach/shared/models/nudge_model.dart';
 import 'package:budgcoach/shared/models/savings_goal_model.dart';
 import 'package:budgcoach/shared/models/transaction_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -83,6 +84,34 @@ void main() {
         CategoryConstants.fromString('unknown'),
         TransactionCategory.other,
       );
+    });
+  });
+
+  group('NudgeModel', () {
+    test('maps the persistent personalized nudge API contract', () {
+      final nudge = NudgeModel.fromJson({
+        'id': 'nudge-1',
+        'type': 'critical',
+        'title': 'Food budget exceeded',
+        'message': 'You have spent more than your monthly limit.',
+        'category': 'Food and Dining',
+        'action_label': 'Review budget',
+        'action_route': '/home/budget',
+        'priority': 100,
+        'metric_data': {'spent': 1200, 'limit': 1000},
+        'generated_at': '2026-08-20T12:00:00Z',
+        'expires_at': '2026-08-31T23:59:59Z',
+        'dismissed_at': null,
+        'is_dismissed': false,
+      });
+
+      expect(nudge.id, 'nudge-1');
+      expect(nudge.severity, NudgeSeverity.critical);
+      expect(nudge.category, TransactionCategory.food);
+      expect(nudge.actionRoute, '/home/budget');
+      expect(nudge.metrics['spent'], 1200);
+      expect(nudge.isDismissed, isFalse);
+      expect(nudge.copyWith(isDismissed: true).isDismissed, isTrue);
     });
   });
 }

@@ -1,37 +1,55 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../shared/models/nudge_model.dart';
-import '../../../core/network/api_client.dart';
 
-class NudgesNotifier extends StateNotifier<List<NudgeModel>> {
+import '../../../core/network/api_client.dart';
+import '../../../shared/models/nudge_model.dart';
+
+class NudgesNotifier extends StateNotifier<AsyncValue<List<NudgeModel>>> {
   final ApiClient _apiClient;
 
-  NudgesNotifier(this._apiClient) : super([]) {
+  NudgesNotifier(this._apiClient) : super(const AsyncValue.loading()) {
     fetchNudges();
   }
 
   Future<void> fetchNudges() async {
+    state = const AsyncValue.loading();
     try {
       final response = await _apiClient.dio.get('/nudges/');
       final data = response.data as List<dynamic>;
-      state = data.map((e) => NudgeModel.fromJson(e)).toList();
-    } catch (e) {
-      debugPrint('Failed to fetch nudges: $e');
+      state = AsyncValue.data(
+        data
+            .map((item) => NudgeModel.fromJson(item as Map<String, dynamic>))
+            .toList(),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to fetch nudges: $error');
+      state = AsyncValue.error(error, stackTrace);
     }
   }
 
-  void dismissNudge(String id) {
-    state = state.map((n) {
-      if (n.id == id) {
-        return n.copyWith(isDismissed: true);
-      }
-      return n;
-    }).toList();
+  Future<void> dismissNudge(String id) async {
+    final current = state.valueOrNull;
+    if (current == null) return;
+
+    state = AsyncValue.data(
+      current
+          .map(
+            (nudge) =>
+                nudge.id == id ? nudge.copyWith(isDismissed: true) : nudge,
+          )
+          .toList(),
+    );
+
+    try {
+      await _apiClient.dio.patch('/nudges/$id/dismiss');
+    } catch (error) {
+      debugPrint('Failed to dismiss nudge: $error');
+      state = AsyncValue.data(current);
+    }
   }
 }
 
-final nudgesProvider = StateNotifierProvider<NudgesNotifier, List<NudgeModel>>((
-  ref,
-) {
-  return NudgesNotifier(ref.watch(apiClientProvider));
-});
+final nudgesProvider =
+    StateNotifierProvider<NudgesNotifier, AsyncValue<List<NudgeModel>>>(
+      (ref) => NudgesNotifier(ref.watch(apiClientProvider)),
+    );
