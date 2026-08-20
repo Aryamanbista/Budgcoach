@@ -74,6 +74,7 @@ class PDFTextExtractor(BaseExtractor):
             except ValueError:
                 return None
 
+        last_tx = None
         for row in table[1:]:
             row_dict = {raw_headers[i]: (row[i] if i < len(row) else "") for i in range(len(raw_headers))}
             
@@ -85,13 +86,19 @@ class PDFTextExtractor(BaseExtractor):
             balance_val = parse_float(row_dict.get(header_map.get('balance'))) if 'balance' in header_map else None
             
             if not date_val and debit_val is None and credit_val is None:
+                # This is likely a continuation of the description from the previous row
+                if desc_val and last_tx:
+                    if last_tx.description:
+                        last_tx.description += " " + desc_val.strip()
+                    else:
+                        last_tx.description = desc_val.strip()
                 continue
                 
             raw_line = " | ".join([f"{k}: {v}" for k, v in row_dict.items() if v])
             
             tx_row = TransactionRow(
                 date=date_val,
-                description=desc_val,
+                description=desc_val.strip() if desc_val else "",
                 debit=debit_val,
                 credit=credit_val,
                 balance=balance_val,
@@ -99,6 +106,7 @@ class PDFTextExtractor(BaseExtractor):
                 source_format="pdf_text",
                 confidence=1.0
             )
+            last_tx = tx_row
             rows.append(tx_row)
             
         return rows

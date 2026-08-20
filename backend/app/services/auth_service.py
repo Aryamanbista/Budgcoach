@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.user import User
+from app.models.account import Account
 from app.schemas.user import UserCreate
 from app.core.security import get_password_hash, verify_password
 
@@ -17,6 +18,15 @@ async def create_user(db: AsyncSession, user_in: UserCreate) -> User:
     db.add(db_user)
     await db.commit()
     await db.refresh(db_user)
+    
+    default_wallet = Account(
+        user_id=db_user.id,
+        wallet_name="Default Wallet",
+        balance=0.0
+    )
+    db.add(default_wallet)
+    await db.commit()
+    
     return db_user
 
 async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
