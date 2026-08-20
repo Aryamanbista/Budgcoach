@@ -54,6 +54,10 @@ class _ForecastContent extends StatelessWidget {
         _SummaryCard(forecast: forecast),
         const SizedBox(height: 16),
         _LearningCard(status: forecast.aiStatus),
+        if (forecast.upcomingFestivals.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _FestivalCard(festival: forecast.upcomingFestivals.first),
+        ],
         const SizedBox(height: 24),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -172,7 +176,7 @@ class _LearningCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = (status.readinessPercentage / 100).clamp(0.0, 1.0);
+    final progress = status.modelReadiness;
     final isLearning = status.isLearning;
 
     return Container(
@@ -217,14 +221,24 @@ class _LearningCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${status.daysLogged} of ${status.requiredDays} days available',
+                      '${status.modelDaysLogged} of ${status.modelRequiredDays} days available for personal AI',
                       style: AppTextStyles.labelSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      status.coverageLabel,
+                      style: AppTextStyles.labelSmall.copyWith(
+                        color: status.coverageStatus == 'verified'
+                            ? AppColors.success
+                            : AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
               ),
               Text(
-                '${status.readinessPercentage.round()}%',
+                '${(status.modelReadiness * 100).round()}%',
                 style: AppTextStyles.titleLarge.copyWith(
                   color: AppColors.primary,
                 ),
@@ -249,6 +263,30 @@ class _LearningCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FestivalCard extends StatelessWidget {
+  final ForecastFestival festival;
+
+  const _FestivalCard({required this.festival});
+
+  @override
+  Widget build(BuildContext context) {
+    final days = festival.date.difference(DateTime.now()).inDays + 1;
+    return Card(
+      color: AppColors.secondary.withValues(alpha: 0.08),
+      child: ListTile(
+        leading: const CircleAvatar(child: Icon(Icons.celebration_outlined)),
+        title: Text('${festival.name} spending window'),
+        subtitle: Text(
+          days > 0
+              ? 'Begins in $days days. Your projection includes a personalized festival adjustment.'
+              : 'Your projection includes a personalized festival adjustment.',
+        ),
+        trailing: festival.isMajor ? const Chip(label: Text('Major')) : null,
       ),
     );
   }

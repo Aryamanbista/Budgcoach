@@ -1,94 +1,128 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
-import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class NotificationService {
-  static final FlutterLocalNotificationsPlugin _notificationsPlugin =
+  static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const String _enabledKey = 'personalized_notifications_enabled';
+  static const String _notifiedKey = 'notified_nudge_ids';
+  static final StreamController<String> _routes =
+      StreamController<String>.broadcast();
+  static String? _initialRoute;
+
+  static Stream<String> get routes => _routes.stream;
+
+  static String? takeInitialRoute() {
+    final route = _initialRoute;
+    _initialRoute = null;
+    return route;
+  }
 
   static Future<void> initialize() async {
-    // Web doesn't support local notifications out of the box cleanly in this package
     if (kIsWeb) return;
-
-    tz.initializeTimeZones();
-
-    // Request permission for iOS/Android 13+
-    await Permission.notification.request();
-
-    const initializationSettingsAndroid = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
+    const settings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+      macOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
     );
-
-    const initializationSettingsDarwin = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
-
-    const initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsDarwin,
-      macOS: initializationSettingsDarwin,
-    );
-
-    await _notificationsPlugin.initialize(
-      settings: initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        debugPrint('Notification clicked: ${response.payload}');
-        // We could use a global navigator key to route to the Upload screen
+    await _plugin.initialize(
+      settings: settings,
+      onDidReceiveNotificationResponse: (response) {
+        final route = response.payload;
+        if (route != null && route.startsWith('/')) _routes.add(route);
       },
     );
-
-    // Schedule the daily reminder only on iOS (since Android has automated SMS)
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      await _scheduleDailyReminder();
+    final launchDetails = await _plugin.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      final route = launchDetails?.notificationResponse?.payload;
+      if (route != null && route.startsWith('/')) _initialRoute = route;
     }
   }
 
-  static Future<void> _scheduleDailyReminder() async {
-    const androidDetails = AndroidNotificationDetails(
-      'daily_reminder_channel',
-      'Daily Reminders',
-      channelDescription:
-          'Reminds you to upload statements at the end of the day',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-    const iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
-    const notificationDetails = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
+  static Future<bool> isEnabled() async =>
+      (await _storage.read(key: _enabledKey)) == 'true';
 
-    // Schedule for 8:00 PM every day
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduledDate = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      20,
-    );
-
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
+  static Future<bool> setEnabled(bool enabled) async {
+    if (kIsWeb) return false;
+    if (!enabled) {
+      await _storage.write(key: _enabledKey, value: 'false');
+      await _plugin.cancelAll();
+      return false;
     }
 
-    await _notificationsPlugin.zonedSchedule(
-      id: 0, // notification id
-      title: 'Time to log your spending! 🧾',
-      body: 'Upload your daily statement to keep Budgcoach up to date.',
-      scheduledDate: scheduledDate,
-      notificationDetails: notificationDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time, // Repeat daily
-      payload: '/upload',
+    bool granted = true;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      granted =
+          await _plugin
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >()
+              ?.requestNotificationsPermission() ??
+          true;
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      granted =
+          await _plugin
+              .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin
+              >()
+              ?.requestPermissions(alert: true, badge: true, sound: true) ??
+          false;
+    }
+    await _storage.write(key: _enabledKey, value: granted.toString());
+    return granted;
+  }
+
+  static Future<void> showPersonalizedNudge({
+    required String id,
+    required String title,
+    required String body,
+    String? route,
+  }) async {
+    if (!await isEnabled() || id.isEmpty) return;
+    final notified = (await _storage.read(key: _notifiedKey) ?? '')
+        .split('|')
+        .where((item) => item.isNotEmpty)
+        .toList();
+    if (notified.contains(id)) return;
+
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'personalized_nudges',
+        'Personalized budget nudges',
+        channelDescription:
+            'Timely alerts based on your own budgets and spending',
+        importance: Importance.high,
+        priority: Priority.high,
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+    await _plugin.show(
+      id: id.hashCode & 0x7fffffff,
+      title: title,
+      body: body,
+      notificationDetails: details,
+      payload: route ?? '/nudges',
+    );
+    notified.add(id);
+    await _storage.write(
+      key: _notifiedKey,
+      value: notified.reversed.take(100).toList().reversed.join('|'),
     );
   }
 }

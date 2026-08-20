@@ -17,21 +17,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _currentStep = 0;
 
   // Step 2 Form States
-  final _nameController = TextEditingController(text: 'Aryaman Bista');
+  final _nameController = TextEditingController();
   String _selectedAge = '18–22';
   String _selectedOccupation = 'Student';
 
-  // Step 3 Form States
-  final Map<String, bool> _wallets = {
-    'eSewa': true,
-    'Khalti': true,
-    'Nabil Bank': false,
-    'Sunrise Bank': false,
-    'Himalayan Bank': false,
-  };
-
-  // Step 4 Form States
-  final _incomeController = TextEditingController(text: '35000');
+  // Financial baseline form state
+  final _incomeController = TextEditingController();
+  bool _startWithHistoryUpload = true;
 
   @override
   void dispose() {
@@ -48,15 +40,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
+      final income = double.tryParse(_incomeController.text.trim());
+      if (_nameController.text.trim().isEmpty || income == null || income < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Enter your name and a valid monthly income.'),
+          ),
+        );
+        return;
+      }
       // Complete Onboarding
       await ref
           .read(authProvider.notifier)
           .completeOnboarding(
             name: _nameController.text,
             occupation: _selectedOccupation,
-            monthlyIncome: double.tryParse(_incomeController.text) ?? 35000,
+            monthlyIncome: income,
           );
-      if (mounted) context.go('/home/dashboard');
+      if (mounted) {
+        context.go(
+          _startWithHistoryUpload ? '/home/upload' : '/home/dashboard',
+        );
+      }
     }
   }
 
@@ -118,8 +123,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   children: [
                     _buildStepWelcome(),
                     _buildStepProfile(),
-                    _buildStepWallets(),
                     _buildStepIncome(),
+                    _buildStepHistoryBaseline(),
                   ],
                 ),
               ),
@@ -138,7 +143,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(120, 52),
                     ),
-                    child: Text(_currentStep == 3 ? 'GET STARTED' : 'NEXT'),
+                    child: Text(
+                      _currentStep == 3
+                          ? _startWithHistoryUpload
+                                ? 'UPLOAD HISTORY'
+                                : 'FINISH'
+                          : 'NEXT',
+                    ),
                   ),
                 ],
               ),
@@ -257,7 +268,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _selectedAge,
+            initialValue: _selectedAge,
             decoration: InputDecoration(
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -279,7 +290,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _selectedOccupation,
+            initialValue: _selectedOccupation,
             decoration: InputDecoration(
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -294,64 +305,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildStepWallets() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const SizedBox(height: 40),
-        Text('Connect Wallets & Banks', style: AppTextStyles.displayLarge),
-        const SizedBox(height: 8),
-        Text(
-          'Which digital payment platforms do you spend on?',
-          style: AppTextStyles.bodyMedium.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 24),
-        Expanded(
-          child: ListView(
-            children: _wallets.keys.map((key) {
-              return CheckboxListTile(
-                title: Text(key, style: AppTextStyles.bodyLarge),
-                value: _wallets[key],
-                activeColor: AppColors.primary,
-                onChanged: (val) {
-                  setState(() {
-                    _wallets[key] = val ?? false;
-                  });
-                },
-              );
-            }).toList(),
-          ),
-        ),
-        Card(
-          color: AppColors.primary.withOpacity(0.05),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            side: const BorderSide(color: AppColors.primaryLight, width: 0.5),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                const Icon(Icons.security, color: AppColors.primary),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    "We don't connect directly to your bank account API. You'll upload exported statement files manually for processing.",
-                    style: AppTextStyles.bodyMedium.copyWith(fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -393,6 +346,90 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           style: AppTextStyles.labelSmall,
         ),
       ],
+    );
+  }
+
+  Widget _buildStepHistoryBaseline() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 32),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.auto_graph_rounded,
+              color: AppColors.primary,
+              size: 32,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Build your personal baseline',
+            style: AppTextStyles.displayLarge,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'For the most accurate forecast and timely nudges, start with your latest 30 consecutive days of transactions.',
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildBulletItem(
+            icon: Icons.calendar_month_outlined,
+            title: '30 days recommended',
+            description:
+                'One monthly statement is usually enough. Overlapping uploads are safely deduplicated.',
+          ),
+          const SizedBox(height: 16),
+          _buildBulletItem(
+            icon: Icons.psychology_outlined,
+            title: 'Learns only from your history',
+            description:
+                'Your forecast begins with a statistical baseline and switches to the personal AI model when coverage is ready.',
+          ),
+          const SizedBox(height: 16),
+          _buildBulletItem(
+            icon: Icons.lock_outline,
+            title: 'Your file is not retained',
+            description:
+                'Budgcoach extracts the transaction rows and discards the uploaded document.',
+          ),
+          const SizedBox(height: 24),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.16),
+              ),
+            ),
+            child: SwitchListTile(
+              value: _startWithHistoryUpload,
+              activeThumbColor: AppColors.primary,
+              title: Text(
+                'Start with statement upload',
+                style: AppTextStyles.bodyLarge.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: const Text(
+                'You can skip this and upload later. Budgcoach will use a fallback baseline in the meantime.',
+              ),
+              onChanged: (value) {
+                setState(() => _startWithHistoryUpload = value);
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -63,8 +63,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
           id: userData['id'],
           name: userData['full_name'] ?? 'User',
           email: userData['email'],
-          occupation: 'Digital Spender',
-          monthlyIncome: 0.0,
+          occupation: userData['occupation']?.toString() ?? '',
+          monthlyIncome:
+              double.tryParse(userData['monthly_income']?.toString() ?? '') ??
+              0,
         );
         state = state.copyWith(
           isLoggedIn: true,
@@ -126,8 +128,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         id: userData['id'].toString(),
         name: userData['full_name']?.toString() ?? 'User',
         email: userData['email'].toString(),
-        occupation: 'Digital Spender',
-        monthlyIncome: 0,
+        occupation: userData['occupation']?.toString() ?? '',
+        monthlyIncome:
+            double.tryParse(userData['monthly_income']?.toString() ?? '') ?? 0,
       ),
     );
   }
@@ -137,12 +140,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String occupation,
     required double monthlyIncome,
   }) async {
+    final response = await apiClient.dio.patch(
+      '/me',
+      data: {
+        'full_name': name.trim(),
+        'occupation': occupation.trim(),
+        'monthly_income': monthlyIncome,
+      },
+    );
+    final userData = response.data as Map<String, dynamic>;
     final updatedUser = UserModel(
-      id: state.user?.id ?? '',
-      name: name,
-      email: state.user?.email ?? '',
-      occupation: occupation,
-      monthlyIncome: monthlyIncome,
+      id: userData['id'].toString(),
+      name: userData['full_name']?.toString() ?? name,
+      email: userData['email']?.toString() ?? state.user?.email ?? '',
+      occupation: userData['occupation']?.toString() ?? occupation,
+      monthlyIncome:
+          double.tryParse(userData['monthly_income']?.toString() ?? '') ??
+          monthlyIncome,
     );
     state = state.copyWith(
       isOnboardingCompleted: true,
@@ -151,8 +165,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
   }
 
-  void updateMonthlyIncome(double amount) {
+  Future<void> updateMonthlyIncome(double amount) async {
     if (state.user != null) {
+      await apiClient.dio.patch('/me', data: {'monthly_income': amount});
       final updatedUser = state.user!.copyWith(monthlyIncome: amount);
       state = state.copyWith(user: updatedUser);
     }

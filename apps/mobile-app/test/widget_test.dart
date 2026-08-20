@@ -1,4 +1,5 @@
 import 'package:budgcoach/features/auth/screens/login_screen.dart';
+import 'package:budgcoach/features/auth/screens/onboarding_screen.dart';
 import 'package:budgcoach/features/forecast/providers/forecast_provider.dart';
 import 'package:budgcoach/features/upload/screens/upload_screen.dart';
 import 'package:budgcoach/features/upload/screens/review_transactions_screen.dart';
@@ -24,6 +25,8 @@ void main() {
         'readiness_percentage': 40,
         'active_model': 'personal_baseline',
         'learning_message': 'Budgcoach is learning your spending rhythm.',
+        'coverage_status': 'verified',
+        'is_fresh': true,
       },
       'history_used': [
         {'date': '2026-08-19', 'amount': 9000},
@@ -40,6 +43,26 @@ void main() {
     expect(forecast.predictedPoints[21], 10850);
     expect(forecast.aiStatus.isLearning, isTrue);
     expect(forecast.aiStatus.modelLabel, 'Personal baseline');
+    expect(forecast.aiStatus.coverageLabel, 'Verified & current');
+  });
+
+  testWidgets('onboarding recommends a 30-day history upload', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(430, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: OnboardingScreen())),
+    );
+
+    for (var page = 0; page < 4; page++) {
+      await tester.drag(find.byType(PageView), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.text('Build your personal baseline'), findsOneWidget);
+    expect(find.text('30 days recommended'), findsOneWidget);
+    expect(find.text('UPLOAD HISTORY'), findsOneWidget);
   });
 
   testWidgets(
@@ -65,7 +88,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const ProviderScope(child: MaterialApp(home: UploadScreen())),
+      const ProviderScope(
+        child: MaterialApp(home: UploadScreen(fetchCoverageOnInit: false)),
+      ),
     );
 
     expect(
@@ -94,6 +119,9 @@ void main() {
         'exact_duplicates': 1,
         'possible_duplicates': 1,
         'validation_errors': 0,
+        'coverage_start_date': '2026-08-01',
+        'coverage_end_date': '2026-08-30',
+        'coverage_days': 30,
         'transactions': [
           {
             'row_index': 0,
@@ -142,6 +170,7 @@ void main() {
       expect(find.text('POSSIBLE DUPLICATE'), findsOneWidget);
       expect(find.text('IMPORT 1 TRANSACTIONS'), findsOneWidget);
       expect(find.text('Import anyway'), findsOneWidget);
+      expect(find.text('30 statement days'), findsOneWidget);
     },
   );
 }

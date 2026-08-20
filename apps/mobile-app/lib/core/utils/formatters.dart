@@ -24,16 +24,6 @@ class Formatters {
     return DateFormat('dd/MM/yyyy').format(date);
   }
 
-  /// Returns festival names based on Nepali calendar alignment (e.g. October -> Dashain, November -> Tihar)
-  static String getFestivalName(DateTime date) {
-    if (date.month == 10) {
-      return 'Dashain Festival';
-    } else if (date.month == 11) {
-      return 'Tihar Festival';
-    }
-    return '';
-  }
-
   /// Returns a display string for a date (e.g., "Today", "Yesterday", or "DD/MM/YYYY")
   static String formatDateToWord(DateTime date) {
     final now = DateTime.now();

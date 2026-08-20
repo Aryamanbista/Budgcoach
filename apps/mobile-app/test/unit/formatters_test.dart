@@ -22,18 +22,6 @@ void main() {
       expect(Formatters.formatDate(DateTime(2026, 8, 14)), '14/08/2026');
     });
 
-    test('identifies Dashain and Tihar seasons', () {
-      expect(
-        Formatters.getFestivalName(DateTime(2026, 10, 1)),
-        'Dashain Festival',
-      );
-      expect(
-        Formatters.getFestivalName(DateTime(2026, 11, 1)),
-        'Tihar Festival',
-      );
-      expect(Formatters.getFestivalName(DateTime(2026, 9, 1)), isEmpty);
-    });
-
     test('uses today and yesterday labels', () {
       final today = DateTime.now();
       final yesterday = today.subtract(const Duration(days: 1));

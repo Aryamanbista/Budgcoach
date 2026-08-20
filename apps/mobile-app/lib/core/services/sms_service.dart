@@ -1,73 +1,108 @@
-import 'package:flutter/foundation.dart';
-import 'package:telephony/telephony.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'dart:async';
+
 import 'package:dio/dio.dart';
-import '../network/api_client.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-// Top-level, headless function for background execution
-@pragma('vm:entry-point')
-void onBackgroundMessage(SmsMessage message) async {
-  debugPrint("onBackgroundMessage called: ${message.body}");
-
-  if (message.body == null || message.address == null) return;
-
-  // Basic filter for known bank/wallet sender IDs
-  final sender = message.address!.toLowerCase();
-  if (sender.contains('esewa') ||
-      sender.contains('khalti') ||
-      sender.contains('bank')) {
-    await SmsService.syncSmsToBackend([message.body!]);
-  }
-}
+import '../network/api_client.dart';
 
 class SmsService {
-  static final Telephony telephony = Telephony.instance;
+  static const _methods = MethodChannel('budgcoach/sms');
+  static const _events = EventChannel('budgcoach/sms_events');
+  static StreamSubscription<dynamic>? _subscription;
+  static bool _syncing = false;
+
+  static bool get isAvailable =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   static Future<void> initialize() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (!isAvailable) return;
+    _subscription ??= _events.receiveBroadcastStream().listen(
+      (_) => syncPendingMessages(),
+      onError: (Object error) {
+        debugPrint('Financial SMS listener failed: $error');
+      },
+    );
+  }
 
-    bool? permissionsGranted = await telephony.requestPhoneAndSmsPermissions;
-    if (permissionsGranted != null && permissionsGranted) {
-      telephony.listenIncomingSms(
-        onNewMessage: (SmsMessage message) {
-          debugPrint("Foreground SMS received: ${message.body}");
-          if (message.body != null) {
-            syncSmsToBackend([message.body!]);
-          }
-        },
-        onBackgroundMessage: onBackgroundMessage,
-        listenInBackground: true,
+  static Future<bool> hasPermission() async {
+    if (!isAvailable) return false;
+    return await _methods.invokeMethod<bool>('hasPermission') ?? false;
+  }
+
+  static Future<bool> enable() async {
+    if (!isAvailable) return false;
+    final granted =
+        await _methods.invokeMethod<bool>('requestPermission') ?? false;
+    if (granted) await syncPendingMessages();
+    return granted;
+  }
+
+  static Future<void> syncPendingMessages() async {
+    if (!isAvailable || _syncing || !await hasPermission()) return;
+    _syncing = true;
+    try {
+      const storage = FlutterSecureStorage();
+      final token = await storage.read(key: 'access_token');
+      if (token == null || token.isEmpty) return;
+
+      final rawMessages =
+          await _methods.invokeListMethod<dynamic>('getPendingMessages') ??
+          const [];
+      final messages = rawMessages
+          .whereType<Map<dynamic, dynamic>>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .where((item) => (item['body']?.toString().trim() ?? '').isNotEmpty)
+          .toList();
+      if (messages.isEmpty) return;
+
+      final dio = Dio(
+        BaseOptions(
+          baseUrl: ApiClient.baseUrl,
+          headers: {'Authorization': 'Bearer $token'},
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
       );
+      final accountsResponse = await dio.get('/accounts/');
+      final accounts = accountsResponse.data as List<dynamic>;
+      final String accountId;
+      if (accounts.isEmpty) {
+        final created = await dio.post(
+          '/accounts/',
+          data: {'wallet_name': 'SMS Transactions', 'balance': 0},
+        );
+        accountId = created.data['id'].toString();
+      } else {
+        accountId = accounts.first['id'].toString();
+      }
+
+      await dio.post(
+        '/transactions/sms-sync',
+        data: {
+          'wallet_type': 'auto',
+          'account_id': accountId,
+          'messages': messages
+              .map(
+                (item) =>
+                    '${item['sender']?.toString() ?? ''}: ${item['body']}',
+              )
+              .toList(),
+        },
+      );
+      await _methods.invokeMethod<void>('acknowledgeMessages', {
+        'ids': messages.map((item) => item['id'].toString()).toList(),
+      });
+    } catch (error) {
+      debugPrint('Financial SMS sync will retry later: $error');
+    } finally {
+      _syncing = false;
     }
   }
 
-  static Future<void> syncSmsToBackend(List<String> messages) async {
-    try {
-      // Create a fresh Dio instance since this might run in a background isolate
-      final dio = Dio(BaseOptions(baseUrl: ApiClient.baseUrl));
-
-      // Attempt to retrieve token (note: secure storage in background requires careful Android setup,
-      // but for demonstration we attempt it)
-      const storage = FlutterSecureStorage();
-      final token = await storage.read(key: 'auth_token');
-
-      if (token != null) {
-        dio.options.headers['Authorization'] = 'Bearer $token';
-      }
-
-      final formData = {
-        'wallet_type':
-            'esewa', // We can derive this from address in a full implementation
-        'account_id':
-            '123e4567-e89b-12d3-a456-426614174000', // Dummy UUID for now
-        'messages': messages,
-      };
-
-      await dio.post('/transactions/sms-sync', data: formData);
-      debugPrint("Successfully synced ${messages.length} SMS to backend.");
-    } catch (e) {
-      debugPrint("Failed to sync SMS to backend: $e");
-    }
+  static Future<void> dispose() async {
+    await _subscription?.cancel();
+    _subscription = null;
   }
 }

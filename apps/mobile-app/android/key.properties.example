@@ -1,0 +1,4 @@
+storePassword=replace-with-secure-password
+keyPassword=replace-with-secure-password
+keyAlias=budgcoach
+storeFile=/absolute/path/to/budgcoach-upload-key.jks

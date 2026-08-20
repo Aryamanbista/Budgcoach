@@ -5,8 +5,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class ApiClient {
   late final Dio dio;
 
-  // Use 10.0.2.2 for Android emulator to reach host localhost, otherwise localhost
+  static const _configuredBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+  /// Production builds must provide an HTTPS API endpoint with
+  /// `--dart-define=API_BASE_URL=https://.../api/v1`.
   static String get baseUrl {
+    if (_configuredBaseUrl.isNotEmpty) {
+      final uri = Uri.tryParse(_configuredBaseUrl);
+      if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
+        throw StateError('API_BASE_URL must be an absolute URL.');
+      }
+      if (kReleaseMode && uri.scheme != 'https') {
+        throw StateError('Release builds require an HTTPS API_BASE_URL.');
+      }
+      return _configuredBaseUrl.replaceFirst(RegExp(r'/$'), '');
+    }
+    if (kReleaseMode) {
+      throw StateError(
+        'API_BASE_URL is required for release builds. Pass it using '
+        '--dart-define=API_BASE_URL=https://your-api.example/api/v1.',
+      );
+    }
     if (kIsWeb) return 'http://127.0.0.1:8000/api/v1';
     if (defaultTargetPlatform == TargetPlatform.android) {
       return 'http://10.0.2.2:8000/api/v1';

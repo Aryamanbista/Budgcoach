@@ -9,6 +9,12 @@ class ForecastAiStatus {
   final double readinessPercentage;
   final String activeModel;
   final String learningMessage;
+  final String coverageStatus;
+  final bool isFresh;
+  final int modelDaysLogged;
+  final int modelRequiredDays;
+  final double? validationMae;
+  final bool selectedViaBacktest;
 
   const ForecastAiStatus({
     required this.daysLogged,
@@ -16,6 +22,12 @@ class ForecastAiStatus {
     required this.readinessPercentage,
     required this.activeModel,
     required this.learningMessage,
+    required this.coverageStatus,
+    required this.isFresh,
+    required this.modelDaysLogged,
+    required this.modelRequiredDays,
+    required this.validationMae,
+    required this.selectedViaBacktest,
   });
 
   factory ForecastAiStatus.fromJson(Map<String, dynamic> json) {
@@ -28,10 +40,32 @@ class ForecastAiStatus {
       learningMessage:
           json['learning_message']?.toString() ??
           'Budgcoach is learning your spending rhythm.',
+      coverageStatus: json['coverage_status']?.toString() ?? 'estimated',
+      isFresh: json['is_fresh'] == true,
+      modelDaysLogged: (json['training_days_logged'] as num?)?.toInt() ?? 0,
+      modelRequiredDays:
+          (json['training_required_days'] as num?)?.toInt() ?? 180,
+      validationMae: (json['validation_mae'] as num?)?.toDouble(),
+      selectedViaBacktest: json['selected_via_backtest'] == true,
     );
   }
 
-  bool get isLearning => readinessPercentage < 100;
+  bool get isLearning => activeModel != 'lstm_network';
+
+  double get modelReadiness => modelRequiredDays <= 0
+      ? 0
+      : (modelDaysLogged / modelRequiredDays).clamp(0.0, 1.0);
+
+  String get coverageLabel {
+    switch (coverageStatus) {
+      case 'verified':
+        return isFresh ? 'Verified & current' : 'Verified · update needed';
+      case 'none':
+        return 'No history yet';
+      default:
+        return 'Estimated coverage';
+    }
+  }
 
   String get modelLabel {
     switch (activeModel) {
@@ -45,6 +79,26 @@ class ForecastAiStatus {
   }
 }
 
+class ForecastFestival {
+  final DateTime date;
+  final String name;
+  final bool isMajor;
+
+  const ForecastFestival({
+    required this.date,
+    required this.name,
+    required this.isMajor,
+  });
+
+  factory ForecastFestival.fromJson(Map<String, dynamic> json) {
+    return ForecastFestival(
+      date: DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime.now(),
+      name: json['name']?.toString() ?? 'Festival',
+      isMajor: json['is_major'] == true,
+    );
+  }
+}
+
 class ForecastData {
   final Map<int, double> actualPoints;
   final Map<int, double> predictedPoints;
@@ -55,6 +109,7 @@ class ForecastData {
   final bool budgetBreachWarning;
   final int daysUntilBreach;
   final ForecastAiStatus aiStatus;
+  final List<ForecastFestival> upcomingFestivals;
 
   const ForecastData({
     required this.actualPoints,
@@ -66,6 +121,7 @@ class ForecastData {
     required this.budgetBreachWarning,
     required this.daysUntilBreach,
     required this.aiStatus,
+    required this.upcomingFestivals,
   });
 
   factory ForecastData.fromJson(Map<String, dynamic> json) {
@@ -111,6 +167,13 @@ class ForecastData {
       aiStatus: ForecastAiStatus.fromJson(
         json['ai_status'] as Map<String, dynamic>? ?? const {},
       ),
+      upcomingFestivals:
+          (json['upcoming_festivals'] as List<dynamic>? ?? const [])
+              .map(
+                (item) =>
+                    ForecastFestival.fromJson(item as Map<String, dynamic>),
+              )
+              .toList(),
     );
   }
 }

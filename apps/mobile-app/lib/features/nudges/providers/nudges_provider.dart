@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../shared/models/nudge_model.dart';
 
 class NudgesNotifier extends StateNotifier<AsyncValue<List<NudgeModel>>> {
@@ -16,11 +17,21 @@ class NudgesNotifier extends StateNotifier<AsyncValue<List<NudgeModel>>> {
     try {
       final response = await _apiClient.dio.get('/nudges/');
       final data = response.data as List<dynamic>;
-      state = AsyncValue.data(
-        data
-            .map((item) => NudgeModel.fromJson(item as Map<String, dynamic>))
-            .toList(),
-      );
+      final nudges = data
+          .map((item) => NudgeModel.fromJson(item as Map<String, dynamic>))
+          .toList();
+      state = AsyncValue.data(nudges);
+      for (final nudge
+          in nudges
+              .where((item) => !item.isDismissed && item.priority >= 50)
+              .take(3)) {
+        await NotificationService.showPersonalizedNudge(
+          id: nudge.id,
+          title: nudge.title,
+          body: nudge.description,
+          route: nudge.actionRoute,
+        );
+      }
     } catch (error, stackTrace) {
       debugPrint('Failed to fetch nudges: $error');
       state = AsyncValue.error(error, stackTrace);

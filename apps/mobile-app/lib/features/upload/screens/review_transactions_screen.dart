@@ -8,6 +8,8 @@ import '../../../core/constants/category_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/formatters.dart';
 import '../../transactions/providers/transactions_provider.dart';
+import '../../forecast/providers/forecast_provider.dart';
+import '../../nudges/providers/nudges_provider.dart';
 
 class ReviewTransactionsScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> importPreview;
@@ -24,6 +26,7 @@ class _ReviewRow {
   final String duplicateStatus;
   final List<String> messages;
   final double confidence;
+  final double categoryConfidence;
   DateTime? date;
   String type;
   double amount;
@@ -36,6 +39,7 @@ class _ReviewRow {
     required this.duplicateStatus,
     required this.messages,
     required this.confidence,
+    required this.categoryConfidence,
     required this.date,
     required this.type,
     required this.amount,
@@ -53,13 +57,17 @@ class _ReviewRow {
           .map((item) => item.toString())
           .toList(),
       confidence: double.tryParse(json['confidence'].toString()) ?? 1,
+      categoryConfidence:
+          double.tryParse(json['category_confidence']?.toString() ?? '') ?? 0,
       date: json['date'] == null
           ? null
           : DateTime.tryParse(json['date'].toString()),
       type: json['type']?.toString() ?? 'debit',
       amount: double.tryParse(json['amount'].toString()) ?? 0,
       description: json['clean_text']?.toString() ?? '',
-      category: TransactionCategory.other,
+      category: CategoryConstants.fromString(
+        json['suggested_category']?.toString() ?? 'Other',
+      ),
       include: status == 'new',
     );
   }
@@ -123,15 +131,23 @@ class _ReviewTransactionsScreenState
             },
           );
       await ref.read(transactionsProvider.notifier).fetchTransactions();
+      ref.invalidate(forecastProvider);
+      ref.invalidate(nudgesProvider);
 
       if (!mounted) return;
       final imported = response.data['imported_count'] ?? 0;
       final skipped = response.data['duplicates_skipped'] ?? 0;
+      final coverage =
+          response.data['history_coverage'] as Map<String, dynamic>?;
+      final coveredDays = (coverage?['covered_days'] as num?)?.toInt() ?? 0;
+      final requiredDays = (coverage?['required_days'] as num?)?.toInt() ?? 30;
+      final baselineReady = coverage?['minimum_met'] == true;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             'Imported $imported transactions'
-            '${skipped == 0 ? '' : ' · skipped $skipped duplicates'}',
+            '${skipped == 0 ? '' : ' · skipped $skipped duplicates'}'
+            '${baselineReady ? ' · personal baseline ready' : ' · $coveredDays/$requiredDays history days'}',
           ),
         ),
       );
@@ -208,6 +224,9 @@ class _ReviewTransactionsScreenState
     final exactCount = widget.importPreview['exact_duplicates'] ?? 0;
     final possibleCount = widget.importPreview['possible_duplicates'] ?? 0;
     final invalidCount = widget.importPreview['validation_errors'] ?? 0;
+    final coverageDays = widget.importPreview['coverage_days'] ?? 0;
+    final coverageStart = widget.importPreview['coverage_start_date'];
+    final coverageEnd = widget.importPreview['coverage_end_date'];
 
     return Card(
       margin: const EdgeInsets.all(16),
@@ -240,8 +259,23 @@ class _ReviewTransactionsScreenState
                   AppColors.secondary,
                 ),
                 _summaryChip('$invalidCount invalid', AppColors.textSecondary),
+                if (coverageDays > 0)
+                  _summaryChip(
+                    '$coverageDays statement days',
+                    coverageDays >= 30 ? AppColors.success : AppColors.primary,
+                  ),
               ],
             ),
+            if (coverageStart != null && coverageEnd != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Detected coverage: $coverageStart to $coverageEnd. '
+                'Confirm the rows below to verify this history.',
+                style: AppTextStyles.labelSmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -366,8 +400,10 @@ class _ReviewTransactionsScreenState
                   child: DropdownButtonFormField<TransactionCategory>(
                     initialValue: row.category,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
+                    decoration: InputDecoration(
+                      labelText: row.categoryConfidence > 0
+                          ? 'AI suggested · ${(row.categoryConfidence * 100).round()}%'
+                          : 'Category',
                       isDense: true,
                     ),
                     items: TransactionCategory.values

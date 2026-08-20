@@ -57,7 +57,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/home/upload',
-            builder: (context, state) => const UploadScreen(),
+            builder: (context, state) {
+              final extra = state.extra as Map<String, dynamic>?;
+              return UploadScreen(
+                sharedFilePath: extra?['shared_path']?.toString(),
+                sharedFileName: extra?['shared_name']?.toString(),
+              );
+            },
           ),
           GoRoute(
             path: '/home/budget',

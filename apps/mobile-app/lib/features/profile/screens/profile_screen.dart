@@ -1,9 +1,17 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/services/sms_service.dart';
+import '../../../core/services/notification_service.dart';
+import '../../../core/network/api_client.dart';
 import '../../auth/providers/auth_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -14,7 +22,60 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  bool _enableNotifications = true;
+  bool _enableNotifications = false;
+  bool _smsImportEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (SmsService.isAvailable) {
+      SmsService.hasPermission().then((enabled) {
+        if (mounted) setState(() => _smsImportEnabled = enabled);
+      });
+    }
+    NotificationService.isEnabled().then((enabled) {
+      if (mounted) setState(() => _enableNotifications = enabled);
+    });
+  }
+
+  Future<void> _requestSmsImport() async {
+    final consented = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import financial SMS?'),
+        content: const Text(
+          'On Android, Budgcoach can detect new bank and wallet transaction '
+          'messages. It ignores messages that do not contain both a known '
+          'financial sender and a transaction amount. Matching messages stay '
+          'privately on this device until they are sent to your Budgcoach '
+          'account for transaction parsing. This is optional.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('NOT NOW'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('CONTINUE'),
+          ),
+        ],
+      ),
+    );
+    if (consented != true || !mounted) return;
+    final granted = await SmsService.enable();
+    if (!mounted) return;
+    setState(() => _smsImportEnabled = granted);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          granted
+              ? 'Financial SMS import is enabled.'
+              : 'SMS permission was not granted.',
+        ),
+      ),
+    );
+  }
 
   void _showEditIncomeDialog(BuildContext context, double currentIncome) {
     final controller = TextEditingController(
@@ -38,10 +99,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: const Text('CANCEL'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               final val = double.tryParse(controller.text);
               if (val != null && val > 0) {
-                ref.read(authProvider.notifier).updateMonthlyIncome(val);
+                await ref.read(authProvider.notifier).updateMonthlyIncome(val);
+                if (!context.mounted) return;
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Income updated successfully')),
@@ -71,11 +133,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Future<void> _exportTransactions() async {
+    try {
+      final response = await ref
+          .read(apiClientProvider)
+          .dio
+          .get<List<int>>(
+            '/transactions/export.csv',
+            options: Options(responseType: ResponseType.bytes),
+          );
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/budgcoach-transactions.csv';
+      await File(path).writeAsBytes(response.data ?? const [], flush: true);
+      await Share.shareXFiles([
+        XFile(path, mimeType: 'text/csv'),
+      ], subject: 'Budgcoach transaction export');
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not export transactions. Try again.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final isDark = authState.themeMode == ThemeMode.dark;
+    final initials =
+        (user?.name.trim().isNotEmpty == true ? user!.name : 'User')
+            .split(RegExp(r'\s+'))
+            .take(2)
+            .map((part) => part[0].toUpperCase())
+            .join();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profile'), elevation: 0),
@@ -93,7 +186,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     radius: 48,
                     backgroundColor: AppColors.primary,
                     child: Text(
-                      'AB',
+                      initials,
                       style: AppTextStyles.displayLarge.copyWith(
                         color: Colors.white,
                         fontSize: 32,
@@ -102,20 +195,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    user?.name ?? 'Aryaman Bista',
+                    user?.name ?? 'User',
                     style: AppTextStyles.headlineMedium.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
-                    user?.email ?? 'aryaman@example.com',
+                    user?.email ?? '',
                     style: AppTextStyles.bodyMedium.copyWith(
                       color: AppColors.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Chip(
-                    label: Text(user?.occupation ?? 'Student'),
+                    label: Text(
+                      user?.occupation.isNotEmpty == true
+                          ? user!.occupation
+                          : 'Profile not completed',
+                    ),
                     backgroundColor: AppColors.primary.withOpacity(0.08),
                     side: BorderSide.none,
                   ),
@@ -133,31 +230,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ListTile(
                     title: const Text('Monthly Income'),
                     subtitle: Text(
-                      Formatters.formatNpr(user?.monthlyIncome ?? 35000),
+                      Formatters.formatNpr(user?.monthlyIncome ?? 0),
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => _showEditIncomeDialog(
                       context,
-                      user?.monthlyIncome ?? 35000,
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    title: const Text('Linked Platforms'),
-                    subtitle: Wrap(
-                      spacing: 8,
-                      children: const [
-                        Chip(
-                          label: Text('eSewa'),
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        Chip(
-                          label: Text('Khalti'),
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
+                      user?.monthlyIncome ?? 0,
                     ),
                   ),
                 ],
@@ -192,12 +270,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     title: const Text('Enable Notifications'),
                     value: _enableNotifications,
                     activeColor: AppColors.primary,
-                    onChanged: (val) {
-                      setState(() {
-                        _enableNotifications = val;
-                      });
+                    onChanged: (val) async {
+                      final enabled = await NotificationService.setEnabled(val);
+                      if (mounted) {
+                        setState(() => _enableNotifications = enabled);
+                      }
                     },
                   ),
+                  if (SmsService.isAvailable) ...[
+                    const Divider(height: 1),
+                    SwitchListTile(
+                      title: const Text('Import financial SMS'),
+                      subtitle: const Text(
+                        'Android only · bank and wallet transactions',
+                      ),
+                      value: _smsImportEnabled,
+                      activeThumbColor: AppColors.primary,
+                      onChanged: (enabled) {
+                        if (enabled && !_smsImportEnabled) {
+                          _requestSmsImport();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Disable SMS permission from Android Settings.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -211,57 +314,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ListTile(
                     title: const Text('Export Spending Data'),
                     trailing: const Icon(Icons.download),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Coming soon: PDF/Excel exports'),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    title: const Text(
-                      'Clear Mock Data Cache',
-                      style: TextStyle(color: AppColors.danger),
-                    ),
-                    trailing: const Icon(
-                      Icons.refresh,
-                      color: AppColors.danger,
-                    ),
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Reset Mock Data?'),
-                          content: const Text(
-                            'Are you sure you want to reset all transactions, goals, and budget limits back to the default state?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('CANCEL'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Mock database re-initialized. Restart app to apply.',
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: const Text(
-                                'RESET',
-                                style: TextStyle(color: AppColors.danger),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                    onTap: _exportTransactions,
                   ),
                 ],
               ),
@@ -279,7 +332,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     onTap: () => _showPolicyDialog(
                       context,
                       'Privacy Policy',
-                      'Budgcoach takes security seriously. Your financial statements are processed locally on-device for categorizations and predictions. We do not store or transmit raw banking data to centralized servers.',
+                      'Budgcoach sends statements you choose to upload to your configured Budgcoach server for extraction. Parsed transactions and account data are stored in PostgreSQL under your authenticated account. Raw upload bytes are processed temporarily and are not retained by the import service. Android SMS import is optional and filters financial transaction messages before authenticated synchronization.',
                     ),
                   ),
                   const Divider(height: 1),
@@ -296,7 +349,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const ListTile(
                     title: Text('App Version'),
                     trailing: Text(
-                      '1.0.0-beta',
+                      '1.0.0',
                       style: TextStyle(color: AppColors.textSecondary),
                     ),
                   ),
